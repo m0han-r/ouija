@@ -47,7 +47,6 @@ import ouija.app.core.commands.Command
 import ouija.app.core.effects.EffectManager
 import ouija.app.core.realtime.RealtimeManager
 import ouija.app.core.telemetry.Telemetry
-import ouija.app.service.ClientForegroundService
 
 @Composable
 fun ClientScreen(
@@ -58,7 +57,6 @@ fun ClientScreen(
     onNavigateToServer: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val incomingCommand by realtimeManager.incomingCommand.collectAsState()
     val screenState by effectManager.screenEffectState.collectAsState()
 
     var showSecretMenu by remember { mutableStateOf(false) }
@@ -66,7 +64,7 @@ fun ClientScreen(
     var spellText by remember { mutableStateOf<String?>(null) }
     var spellSpeed by remember { mutableStateOf(800L) }
 
-    // Enforce landscape orientation and start background connection service for Client mode
+    // Enforce landscape orientation and cleanup on dispose
     val context = LocalContext.current
     DisposableEffect(Unit) {
         val activity = context as? Activity
@@ -75,14 +73,8 @@ fun ClientScreen(
 
         onDispose {
             activity?.requestedOrientation = originalOrientation
-        }
-    }
-
-    DisposableEffect(roomCode) {
-        ClientForegroundService.startService(context, roomCode)
-
-        onDispose {
-            ClientForegroundService.stopService(context)
+            effectManager.stopAll()
+            realtimeManager.disconnect()
         }
     }
 
@@ -99,10 +91,9 @@ fun ClientScreen(
         }
     }
 
-    // Execute incoming commands
-    LaunchedEffect(incomingCommand) {
-        val cmd = incomingCommand
-        if (cmd is Command) {
+    // Execute incoming commands stream
+    LaunchedEffect(Unit) {
+        realtimeManager.incomingCommand.collect { cmd ->
             if (cmd is Command.Spell) {
                 spellText = cmd.text
                 spellSpeed = cmd.speedMs

@@ -15,7 +15,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import ouija.app.core.effects.EffectManager
 import ouija.app.core.realtime.RealtimeManager
-import ouija.app.core.realtime.SupabaseConfig
 import ouija.app.core.utils.CodeGenerator
 import ouija.app.ui.client.ClientScreen
 import ouija.app.ui.server.ServerScreen
@@ -23,15 +22,11 @@ import ouija.app.ui.theme.OuijaTheme
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var effectManager: EffectManager
-    private lateinit var realtimeManager: RealtimeManager
+    private val effectManager by lazy { (application as OuijaApp).effectManager }
+    private val realtimeManager by lazy { (application as OuijaApp).realtimeManager }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        effectManager = EffectManager(this)
-        val supabaseClient = SupabaseConfig.createClient()
-        realtimeManager = RealtimeManager(supabaseClient)
 
         setContent {
             OuijaTheme {
@@ -63,11 +58,5 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        effectManager.release()
-        realtimeManager.disconnect()
     }
 }

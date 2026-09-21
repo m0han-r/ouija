@@ -16,7 +16,7 @@ data class CommandPacket(
 @Serializable
 data class CommandArgs(
     val pattern: List<Long> = emptyList(),
-    val amplitude: Int = 200,
+    val amplitude: Int = 255,
     val soundId: String = "",
     val sudden: Boolean = false,
     val videoId: String = "",
@@ -32,7 +32,7 @@ data class CommandArgs(
 )
 
 sealed class Command {
-    data class Vibrate(val pattern: List<Long> = listOf(0L, 200L, 100L, 400L), val amplitude: Int = 200) : Command()
+    data class Vibrate(val pattern: List<Long> = listOf(0L, 300L, 100L, 600L), val amplitude: Int = 255) : Command()
     data class Sound(val soundId: String, val sudden: Boolean = false) : Command()
     data class Video(val videoId: String) : Command()
     data class Spell(val text: String, val speedMs: Long = 800L) : Command()
@@ -72,8 +72,8 @@ sealed class Command {
         fun fromPacket(packet: CommandPacket): Command {
             return when (packet.cmd) {
                 "vibrate" -> Vibrate(
-                    pattern = packet.args.pattern.ifEmpty { listOf(0L, 200L, 100L, 400L) },
-                    amplitude = packet.args.amplitude
+                    pattern = packet.args.pattern.ifEmpty { listOf(0L, 300L, 100L, 600L) },
+                    amplitude = if (packet.args.amplitude == 0) 255 else packet.args.amplitude
                 )
                 "sound" -> Sound(soundId = packet.args.soundId, sudden = packet.args.sudden)
                 "video" -> Video(videoId = packet.args.videoId)

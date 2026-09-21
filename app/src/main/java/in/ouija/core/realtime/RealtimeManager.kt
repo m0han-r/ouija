@@ -1,5 +1,6 @@
 package ouija.app.core.realtime
 
+import android.util.Log
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.realtime.RealtimeChannel
 import io.github.jan.supabase.realtime.broadcast
@@ -8,8 +9,12 @@ import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.realtime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -26,14 +31,22 @@ enum class ConnectionState {
 class RealtimeManager(
     private val supabaseClient: SupabaseClient
 ) {
+    companion object {
+        private const val TAG = "OuijaRealtime"
+    }
+
     private val scope = CoroutineScope(Dispatchers.IO)
     private var channel: RealtimeChannel? = null
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
-    private val _incomingCommand = MutableStateFlow<Command?>(null)
-    val incomingCommand: StateFlow<Command?> = _incomingCommand.asStateFlow()
+    private val _incomingCommand = MutableSharedFlow<Command>(
+        replay = 0,
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val incomingCommand: SharedFlow<Command> = _incomingCommand.asSharedFlow()
 
     private val _incomingTelemetry = MutableStateFlow<Telemetry?>(null)
     val incomingTelemetry: StateFlow<Telemetry?> = _incomingTelemetry.asStateFlow()
@@ -47,39 +60,55 @@ class RealtimeManager(
         isLenient = true
     }
 
+    private var currentChannelName: String? = null
+
     fun joinRoom(roomCode: String, isController: Boolean) {
+        val targetChannel = "room:${roomCode.uppercase()}"
+        if (_connectionState.value == ConnectionState.CONNECTED && currentChannelName == targetChannel) {
+            Log.d(TAG, "Already connected to $targetChannel")
+            return
+        }
+
         scope.launch {
             try {
+                Log.d(TAG, "Joining channel: $targetChannel (isController = $isController)")
+                channel?.unsubscribe()
                 _connectionState.value = ConnectionState.CONNECTING
                 supabaseClient.realtime.connect()
 
-                val channelName = "room:${roomCode.uppercase()}"
-                channel = supabaseClient.realtime.channel(channelName)
+                currentChannelName = targetChannel
+                val ch = supabaseClient.realtime.channel(targetChannel)
+                channel = ch
 
                 // Subscribe to commands
-                val commandFlow = channel!!.broadcastFlow<CommandPacket>(event = "command")
+                val commandFlow = ch.broadcastFlow<CommandPacket>(event = "command")
                 scope.launch {
                     commandFlow.collect { packet ->
                         if (!isController) {
-                            _incomingCommand.value = Command.fromPacket(packet)
+                            val cmd = Command.fromPacket(packet)
+                            Log.d(TAG, "Received command packet: $packet -> $cmd")
+                            _incomingCommand.emit(cmd)
                         }
                     }
                 }
 
                 // Subscribe to telemetry
-                val telemetryFlow = channel!!.broadcastFlow<Telemetry>(event = "telemetry")
+                val telemetryFlow = ch.broadcastFlow<Telemetry>(event = "telemetry")
                 scope.launch {
                     telemetryFlow.collect { telemetry ->
                         if (isController) {
+                            Log.d(TAG, "Received telemetry: $telemetry")
                             _incomingTelemetry.value = telemetry
                             _isPeerConnected.value = true
                         }
                     }
                 }
 
-                channel!!.subscribe()
+                ch.subscribe()
                 _connectionState.value = ConnectionState.CONNECTED
+                Log.d(TAG, "Successfully subscribed to $targetChannel")
             } catch (e: Exception) {
+                Log.e(TAG, "Error joining channel $targetChannel: ${e.message}", e)
                 _connectionState.value = ConnectionState.DISCONNECTED
             }
         }
@@ -90,11 +119,12 @@ class RealtimeManager(
             channel?.let { ch ->
                 try {
                     val packet = command.toPacket()
+                    Log.d(TAG, "Sending command: $command (packet: $packet)")
                     ch.broadcast(event = "command", message = packet)
                 } catch (e: Exception) {
-                    // Ignore broadcast errors
+                    Log.e(TAG, "Failed to send command $command: ${e.message}", e)
                 }
-            }
+            } ?: Log.w(TAG, "Cannot send command $command: Channel is null")
         }
     }
 
@@ -102,9 +132,10 @@ class RealtimeManager(
         scope.launch {
             channel?.let { ch ->
                 try {
+                    Log.d(TAG, "Sending telemetry: $telemetry")
                     ch.broadcast(event = "telemetry", message = telemetry)
                 } catch (e: Exception) {
-                    // Ignore telemetry errors
+                    Log.e(TAG, "Failed to send telemetry: ${e.message}", e)
                 }
             }
         }
@@ -113,13 +144,15 @@ class RealtimeManager(
     fun disconnect() {
         scope.launch {
             try {
+                Log.d(TAG, "Disconnecting from channel $currentChannelName")
                 channel?.unsubscribe()
                 supabaseClient.realtime.disconnect()
             } catch (e: Exception) {
-                // Ignore disconnect errors
+                Log.e(TAG, "Error disconnecting: ${e.message}", e)
             } finally {
                 _connectionState.value = ConnectionState.DISCONNECTED
                 _isPeerConnected.value = false
+                currentChannelName = null
             }
         }
     }

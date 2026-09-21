@@ -15,27 +15,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import ouija.app.OuijaApp
 import ouija.app.R
 import ouija.app.core.effects.EffectManager
 import ouija.app.core.realtime.RealtimeManager
-import ouija.app.core.realtime.SupabaseConfig
 import ouija.app.core.telemetry.Telemetry
 
 class ClientForegroundService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO)
     private var heartbeatJob: Job? = null
-    private lateinit var effectManager: EffectManager
-    private lateinit var realtimeManager: RealtimeManager
+
+    private val effectManager: EffectManager by lazy { (applicationContext as OuijaApp).effectManager }
+    private val realtimeManager: RealtimeManager by lazy { (applicationContext as OuijaApp).realtimeManager }
 
     override fun onCreate() {
         super.onCreate()
         promoteToForeground()
-        createNotificationChannel()
-
-        effectManager = EffectManager(applicationContext)
-        val supabaseClient = SupabaseConfig.createClient()
-        realtimeManager = RealtimeManager(supabaseClient)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -48,7 +44,7 @@ class ClientForegroundService : Service() {
             // Collect incoming commands even in background
             serviceScope.launch {
                 realtimeManager.incomingCommand.collect { cmd ->
-                    cmd?.let { effectManager.executeCommand(it) }
+                    effectManager.executeCommand(cmd)
                 }
             }
 
@@ -75,28 +71,31 @@ class ClientForegroundService : Service() {
             .setOngoing(true)
             .build()
 
-        val foregroundServiceType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-        } else {
-            0
-        }
-
         try {
-            ServiceCompat.startForeground(
-                this,
-                NOTIFICATION_ID,
-                notification,
-                foregroundServiceType
-            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            try {
+                @Suppress("DEPRECATION")
+                startForeground(NOTIFICATION_ID, notification)
+            } catch (e2: Exception) {
+                e2.printStackTrace()
+            }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         heartbeatJob?.cancel()
-        effectManager.release()
+        effectManager.stopAll()
         realtimeManager.disconnect()
     }
 

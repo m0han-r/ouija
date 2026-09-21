@@ -8,6 +8,10 @@ object SupabaseConfig {
     const val SUPABASE_URL = "https://exivynchfxroghrohkee.supabase.co"
     const val SUPABASE_ANON_KEY = "sb_publishable_LdkwFB3rQQXF1_OwQcgM3A_IBfmkhJ1"
 
+    val client: SupabaseClient by lazy {
+        createClient()
+    }
+
     fun createClient(
         url: String = SUPABASE_URL,
         anonKey: String = SUPABASE_ANON_KEY

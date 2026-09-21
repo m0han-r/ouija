@@ -6,11 +6,11 @@ import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
-import android.os.CombinedVibration
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +34,10 @@ class EffectManager(
     private val context: Context
 ) : TextToSpeech.OnInitListener {
 
+    companion object {
+        private const val TAG = "OuijaEffects"
+    }
+
     private val scope = CoroutineScope(Dispatchers.Main)
     private var torchJob: Job? = null
     private var shakeJob: Job? = null
@@ -45,24 +49,31 @@ class EffectManager(
     private val _screenEffectState = MutableStateFlow(ScreenEffectState())
     val screenEffectState: StateFlow<ScreenEffectState> = _screenEffectState.asStateFlow()
 
-    init {
-        try {
-            tts = TextToSpeech(context.applicationContext, this)
-        } catch (e: Exception) {
-            // TTS initialization fallback
+    private fun initTtsIfNeeded() {
+        if (tts == null) {
+            try {
+                Log.d(TAG, "Initializing TextToSpeech engine...")
+                tts = TextToSpeech(context.applicationContext, this)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize TTS: ${e.message}", e)
+            }
         }
     }
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
+            Log.d(TAG, "TextToSpeech initialized successfully")
             tts?.language = Locale.US
             tts?.setPitch(0.5f)
             tts?.setSpeechRate(0.8f)
             isTtsReady = true
+        } else {
+            Log.w(TAG, "TextToSpeech initialization failed with status: $status")
         }
     }
 
     fun executeCommand(command: Command) {
+        Log.d(TAG, "Executing command effect: $command")
         when (command) {
             is Command.Vibrate -> triggerVibration(command.pattern, command.amplitude)
             is Command.Flashlight -> triggerFlashlight(command.durationMs)
@@ -80,32 +91,39 @@ class EffectManager(
 
     private fun triggerVibration(pattern: List<Long>, amplitude: Int) {
         try {
-            val safeAmplitude = amplitude.coerceIn(1, 255)
+            val safeAmplitude = if (amplitude == 0) 255 else amplitude.coerceIn(1, 255)
             val timings = pattern.ifEmpty { listOf(0L, 300L, 100L, 600L) }.toLongArray()
+            Log.d(TAG, "Triggering vibration (amplitude = $safeAmplitude, timings = ${timings.joinToString()})")
+
+            @Suppress("DEPRECATION")
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            } ?: (context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
 
             val audioAttributes = AudioAttributes.Builder()
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .setUsage(AudioAttributes.USAGE_ALARM)
                 .build()
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                val amplitudes = IntArray(timings.size) { if (it % 2 == 1) safeAmplitude else 0 }
-                val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
-                vibratorManager?.defaultVibrator?.vibrate(effect, audioAttributes)
-            } else {
-                @Suppress("DEPRECATION")
-                val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-                val amplitudes = IntArray(timings.size) { if (it % 2 == 1) safeAmplitude else 0 }
-                val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+            val amplitudes = IntArray(timings.size) { if (it % 2 == 1) safeAmplitude else 0 }
+            val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+
+            try {
                 vibrator?.vibrate(effect, audioAttributes)
+            } catch (e: Exception) {
+                Log.w(TAG, "AudioAttributes vibration failed, falling back to standard: ${e.message}")
+                vibrator?.vibrate(effect)
             }
         } catch (e: Exception) {
-            // Safe vibration handling
+            Log.e(TAG, "Error executing vibration: ${e.message}", e)
         }
     }
 
     private fun triggerFlashlight(durationMs: Long) {
+        Log.d(TAG, "Triggering flashlight flicker for ${durationMs}ms")
         torchJob?.cancel()
         torchJob = scope.launch(Dispatchers.IO) {
             try {
@@ -121,12 +139,13 @@ class EffectManager(
                 }
                 cameraManager.setTorchMode(cameraId, false)
             } catch (e: Exception) {
-                // Flashlight fallback
+                Log.e(TAG, "Error flickering flashlight: ${e.message}", e)
             }
         }
     }
 
     private fun triggerSound(soundId: String, sudden: Boolean) {
+        Log.d(TAG, "Triggering sound: $soundId (sudden = $sudden)")
         scope.launch(Dispatchers.IO) {
             try {
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -147,22 +166,28 @@ class EffectManager(
                 delay(1200)
                 toneGen.release()
             } catch (e: Exception) {
-                // Safe sound fallback
+                Log.e(TAG, "Error playing sound: ${e.message}", e)
             }
         }
     }
 
     private fun triggerTTS(text: String, pitch: Float) {
-        if (!isTtsReady || tts == null) return
+        Log.d(TAG, "Triggering TTS: \"$text\" (pitch = $pitch)")
+        initTtsIfNeeded()
+        if (!isTtsReady || tts == null) {
+            Log.w(TAG, "TTS requested but engine is not ready yet")
+            return
+        }
         try {
             tts?.setPitch(pitch.coerceIn(0.1f, 1.0f))
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SCARE_TTS")
         } catch (e: Exception) {
-            // TTS fallback
+            Log.e(TAG, "Error executing TTS: ${e.message}", e)
         }
     }
 
     private fun triggerScreenFlash(mode: String) {
+        Log.d(TAG, "Triggering screen flash mode: $mode")
         flashJob?.cancel()
         _screenEffectState.value = _screenEffectState.value.copy(flashMode = mode)
         flashJob = scope.launch {
@@ -172,6 +197,7 @@ class EffectManager(
     }
 
     private fun triggerShake(durationMs: Long) {
+        Log.d(TAG, "Triggering screen shake for ${durationMs}ms")
         shakeJob?.cancel()
         _screenEffectState.value = _screenEffectState.value.copy(isShaking = true)
         shakeJob = scope.launch {
@@ -181,26 +207,32 @@ class EffectManager(
     }
 
     private fun triggerVideo(videoId: String) {
+        Log.d(TAG, "Triggering jump scare video: $videoId")
         _screenEffectState.value = _screenEffectState.value.copy(videoId = videoId)
     }
 
     fun dismissVideo() {
+        Log.d(TAG, "Dismissing jump scare video overlay")
         _screenEffectState.value = _screenEffectState.value.copy(videoId = null)
     }
 
     private fun triggerFakeUI(type: String) {
+        Log.d(TAG, "Triggering fake UI overlay: $type")
         _screenEffectState.value = _screenEffectState.value.copy(fakeUiType = type)
     }
 
     fun dismissFakeUI() {
+        Log.d(TAG, "Dismissing fake UI overlay")
         _screenEffectState.value = _screenEffectState.value.copy(fakeUiType = null)
     }
 
     private fun setDimmed(dimmed: Boolean) {
+        Log.d(TAG, "Setting board dimming: $dimmed")
         _screenEffectState.value = _screenEffectState.value.copy(isDimmed = dimmed)
     }
 
     fun stopAll() {
+        Log.d(TAG, "STOP ALL EFFECTS requested - halting all tasks")
         torchJob?.cancel()
         shakeJob?.cancel()
         flashJob?.cancel()
