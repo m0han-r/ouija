@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import ouija.app.core.commands.Command
 import ouija.app.core.realtime.ConnectionState
 import ouija.app.core.realtime.RealtimeManager
+import ouija.app.core.utils.CodeGenerator
 
 @Composable
 fun ServerScreen(
@@ -51,7 +53,8 @@ fun ServerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var inputCode by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    var inputCode by remember { mutableStateOf(CodeGenerator.getLastConnectedCode(context)) }
     var answerText by remember { mutableStateOf("") }
 
     val connectionState by realtimeManager.connectionState.collectAsState()
@@ -118,6 +121,7 @@ fun ServerScreen(
                     Button(
                         onClick = {
                             if (inputCode.length == 5) {
+                                CodeGenerator.saveLastConnectedCode(context, inputCode)
                                 realtimeManager.joinRoom(inputCode, isController = true)
                             }
                         },

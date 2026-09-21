@@ -32,7 +32,8 @@ class MainActivity : ComponentActivity() {
             OuijaTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
-                    var roomCode by remember { mutableStateOf(CodeGenerator.generateCode()) }
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    var roomCode by remember { mutableStateOf(CodeGenerator.getOrGenerateRoomCode(context)) }
 
                     NavHost(
                         navController = navController,
@@ -43,7 +44,7 @@ class MainActivity : ComponentActivity() {
                                 roomCode = roomCode,
                                 realtimeManager = realtimeManager,
                                 effectManager = effectManager,
-                                onRegenerateCode = { roomCode = CodeGenerator.generateCode() },
+                                onRegenerateCode = { roomCode = CodeGenerator.regenerateRoomCode(context) },
                                 onNavigateToServer = { navController.navigate("server_mode") }
                             )
                         }
