@@ -81,24 +81,24 @@ class EffectManager(
     private fun triggerVibration(pattern: List<Long>, amplitude: Int) {
         try {
             val safeAmplitude = amplitude.coerceIn(1, 255)
-            val timings = pattern.ifEmpty { listOf(0L, 200L, 100L, 400L) }.toLongArray()
+            val timings = pattern.ifEmpty { listOf(0L, 300L, 100L, 600L) }.toLongArray()
+
+            val audioAttributes = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .build()
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
                 val amplitudes = IntArray(timings.size) { if (it % 2 == 1) safeAmplitude else 0 }
                 val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
-                vibratorManager?.vibrate(CombinedVibration.createParallel(effect))
+                vibratorManager?.defaultVibrator?.vibrate(effect, audioAttributes)
             } else {
                 @Suppress("DEPRECATION")
                 val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    val amplitudes = IntArray(timings.size) { if (it % 2 == 1) safeAmplitude else 0 }
-                    val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
-                    vibrator?.vibrate(effect)
-                } else {
-                    @Suppress("DEPRECATION")
-                    vibrator?.vibrate(timings, -1)
-                }
+                val amplitudes = IntArray(timings.size) { if (it % 2 == 1) safeAmplitude else 0 }
+                val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+                vibrator?.vibrate(effect, audioAttributes)
             }
         } catch (e: Exception) {
             // Safe vibration handling

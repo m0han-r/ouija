@@ -17,7 +17,6 @@ import ouija.app.core.effects.EffectManager
 import ouija.app.core.realtime.RealtimeManager
 import ouija.app.core.realtime.SupabaseConfig
 import ouija.app.core.utils.CodeGenerator
-import ouija.app.ui.ModeSelectionScreen
 import ouija.app.ui.client.ClientScreen
 import ouija.app.ui.server.ServerScreen
 import ouija.app.ui.theme.OuijaTheme
@@ -42,22 +41,15 @@ class MainActivity : ComponentActivity() {
 
                     NavHost(
                         navController = navController,
-                        startDestination = "mode_selection"
+                        startDestination = "client_mode"
                     ) {
-                        composable("mode_selection") {
-                            ModeSelectionScreen(
-                                onSelectClient = { navController.navigate("client_mode") },
-                                onSelectServer = { navController.navigate("server_mode") }
-                            )
-                        }
-
                         composable("client_mode") {
                             ClientScreen(
                                 roomCode = roomCode,
                                 realtimeManager = realtimeManager,
                                 effectManager = effectManager,
                                 onRegenerateCode = { roomCode = CodeGenerator.generateCode() },
-                                onExit = { navController.popBackStack() }
+                                onNavigateToServer = { navController.navigate("server_mode") }
                             )
                         }
 

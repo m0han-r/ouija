@@ -29,10 +29,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,7 +41,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import ouija.app.core.commands.Command
 import ouija.app.core.realtime.ConnectionState
 import ouija.app.core.realtime.RealtimeManager
@@ -56,27 +53,13 @@ fun ServerScreen(
 ) {
     var inputCode by remember { mutableStateOf("") }
     var answerText by remember { mutableStateOf("") }
-    var cooldownSeconds by remember { mutableIntStateOf(0) }
 
     val connectionState by realtimeManager.connectionState.collectAsState()
     val isPeerConnected by realtimeManager.isPeerConnected.collectAsState()
     val telemetry by realtimeManager.incomingTelemetry.collectAsState()
 
-    // Cooldown countdown
-    LaunchedEffect(cooldownSeconds) {
-        if (cooldownSeconds > 0) {
-            delay(1000L)
-            cooldownSeconds -= 1
-        }
-    }
-
     fun triggerScare(command: Command) {
-        if (cooldownSeconds == 0 || command is Command.StopAll) {
-            realtimeManager.sendCommand(command)
-            if (command !is Command.StopAll) {
-                cooldownSeconds = 10 // 10s cooldown
-            }
-        }
+        realtimeManager.sendCommand(command)
     }
 
     Column(
@@ -267,16 +250,7 @@ fun ServerScreen(
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("SCARE CONTROL PANEL", color = Color(0xFFF44336), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    if (cooldownSeconds > 0) {
-                        Text("COOLDOWN: ${cooldownSeconds}s", color = Color(0xFFFFC107), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
+                Text("SCARE CONTROL PANEL", color = Color(0xFFF44336), fontSize = 14.sp, fontWeight = FontWeight.Bold)
 
                 Spacer(modifier = Modifier.height(12.dp))
 
