@@ -758,6 +758,26 @@ private fun DrawScope.drawBloodSplashEffect(intensity: Float, isDimmed: Boolean)
         alphaMul = alphaMul
     )
 
+    // Downward gravity drip rivulets running down the wood board from Stain 1
+    drawDownwardBloodDrip(
+        start = splash1Center + Offset(-4.dp.toPx(), 16.dp.toPx()),
+        lengthDp = 42f,
+        neckWidthDp = 4.2f,
+        bulbRadiusDp = 3.6f,
+        meanderDp = 3.2f,
+        hasDetachedDrip = true,
+        alphaMul = alphaMul
+    )
+    drawDownwardBloodDrip(
+        start = splash1Center + Offset(10.dp.toPx(), 14.dp.toPx()),
+        lengthDp = 25f,
+        neckWidthDp = 3.0f,
+        bulbRadiusDp = 2.4f,
+        meanderDp = -2.0f,
+        hasDetachedDrip = false,
+        alphaMul = alphaMul
+    )
+
     // Organic satellite droplets thrown from impact 1
     val splash1Satellites = listOf(
         Pair(Offset(-28f, -22f), 2.6f),
@@ -799,6 +819,21 @@ private fun DrawScope.drawBloodSplashEffect(intensity: Float, isDimmed: Boolean)
         )
     }
 
+    // Downward drip running down from the primary heavy impact of the fling
+    val primaryFlingDrop = flingOrigin + Offset(
+        14.dp.toPx() * cos(flingAngle.toDouble()).toFloat(),
+        14.dp.toPx() * sin(flingAngle.toDouble()).toFloat() + 1.5.dp.toPx()
+    )
+    drawDownwardBloodDrip(
+        start = primaryFlingDrop,
+        lengthDp = 30f,
+        neckWidthDp = 2.6f,
+        bulbRadiusDp = 2.2f,
+        meanderDp = 1.6f,
+        hasDetachedDrip = true,
+        alphaMul = alphaMul
+    )
+
     // Fine spray mist droplets flanking the directional fling
     val flingMist = listOf(
         Pair(Offset(-12f, -6f), 1.3f),
@@ -825,6 +860,18 @@ private fun DrawScope.drawBloodSplashEffect(intensity: Float, isDimmed: Boolean)
         seed = 3.8f,
         alphaMul = alphaMul
     )
+
+    // Downward drip running towards bottom board edge
+    drawDownwardBloodDrip(
+        start = splash3Center + Offset(2.dp.toPx(), 11.dp.toPx()),
+        lengthDp = 32f,
+        neckWidthDp = 3.5f,
+        bulbRadiusDp = 2.8f,
+        meanderDp = -2.4f,
+        hasDetachedDrip = true,
+        alphaMul = alphaMul
+    )
+
     val splash3Satellites = listOf(
         Pair(Offset(-18f, -14f), 2.0f),
         Pair(Offset(20f, -12f), 2.2f),
@@ -846,6 +893,18 @@ private fun DrawScope.drawBloodSplashEffect(intensity: Float, isDimmed: Boolean)
         seed = 5.2f,
         alphaMul = alphaMul
     )
+
+    // Narrow eerie trickle running down from the flick impact
+    drawDownwardBloodDrip(
+        start = flickOrigin + Offset(-1.dp.toPx(), 7.5.dp.toPx()),
+        lengthDp = 26f,
+        neckWidthDp = 2.4f,
+        bulbRadiusDp = 2.0f,
+        meanderDp = 1.4f,
+        hasDetachedDrip = false,
+        alphaMul = alphaMul
+    )
+
     drawDirectionalSpatter(
         center = flickOrigin + Offset(16.dp.toPx(), 12.dp.toPx()),
         angleRad = 0.65f,
@@ -1041,6 +1100,137 @@ private fun DrawScope.drawMicroSpatterMist(
             color = Color(0xDD3B070D).copy(alpha = 0.85f * alphaMul),
             radius = rPx,
             center = center
+        )
+    }
+}
+
+private fun DrawScope.drawDownwardBloodDrip(
+    start: Offset,
+    lengthDp: Float,
+    neckWidthDp: Float,
+    bulbRadiusDp: Float,
+    meanderDp: Float = 0f,
+    hasDetachedDrip: Boolean = false,
+    alphaMul: Float
+) {
+    val lenPx = lengthDp.dp.toPx()
+    val neckW = neckWidthDp.dp.toPx()
+    val bulbR = bulbRadiusDp.dp.toPx()
+    val meanderPx = meanderDp.dp.toPx()
+
+    val startX = start.x
+    val startY = start.y
+    val bulbCenter = Offset(startX + meanderPx, startY + lenPx - bulbR)
+
+    // 1. Capillary Wood-Soak Halo (blood serum seeping into surrounding porous mahogany)
+    val soakSpine = Path().apply {
+        moveTo(startX, startY)
+        cubicTo(
+            startX + meanderPx * 0.25f, startY + lenPx * 0.35f,
+            startX + meanderPx * 0.75f, startY + lenPx * 0.70f,
+            bulbCenter.x, bulbCenter.y
+        )
+    }
+    drawPath(
+        path = soakSpine,
+        color = Color(0x35280E08).copy(alpha = 0.38f * alphaMul),
+        style = Stroke(width = neckW + 3.2.dp.toPx(), cap = StrokeCap.Round)
+    )
+    drawCircle(
+        color = Color(0x35280E08).copy(alpha = 0.38f * alphaMul),
+        radius = bulbR + 1.8.dp.toPx(),
+        center = bulbCenter
+    )
+
+    // 2. Coagulated Maroon Blood Body (smooth continuous contour from neck down to hanging droplet bulb)
+    val dripBody = Path().apply {
+        val halfNeck = neckW / 2f
+        val stemW = (neckW * 0.50f).coerceAtLeast(1.2.dp.toPx())
+        val halfStem = stemW / 2f
+        val k = 0.552f
+
+        moveTo(startX - halfNeck, startY)
+        // Left descending rivulet edge
+        cubicTo(
+            startX - halfNeck * 0.8f + meanderPx * 0.25f, startY + lenPx * 0.35f,
+            bulbCenter.x - halfStem + meanderPx * 0.1f, startY + lenPx * 0.65f,
+            bulbCenter.x - bulbR, bulbCenter.y
+        )
+        // Rounded hanging droplet bottom bulb
+        cubicTo(
+            bulbCenter.x - bulbR, bulbCenter.y + k * bulbR,
+            bulbCenter.x - k * bulbR, bulbCenter.y + bulbR * 1.12f,
+            bulbCenter.x, bulbCenter.y + bulbR * 1.12f
+        )
+        cubicTo(
+            bulbCenter.x + k * bulbR, bulbCenter.y + bulbR * 1.12f,
+            bulbCenter.x + bulbR, bulbCenter.y + k * bulbR,
+            bulbCenter.x + bulbR, bulbCenter.y
+        )
+        // Right ascending rivulet edge
+        cubicTo(
+            bulbCenter.x + halfStem + meanderPx * 0.1f, startY + lenPx * 0.65f,
+            startX + halfNeck * 0.8f + meanderPx * 0.25f, startY + lenPx * 0.35f,
+            startX + halfNeck, startY
+        )
+        close()
+    }
+    drawPath(
+        path = dripBody,
+        color = Color(0xDD3E080E).copy(alpha = 0.88f * alphaMul)
+    )
+
+    // 3. Dense Oxidized Clotted Core Vein (darker oxidized spine where fluid accumulated)
+    val coreSpine = Path().apply {
+        moveTo(startX, startY)
+        cubicTo(
+            startX + meanderPx * 0.25f, startY + lenPx * 0.35f,
+            startX + meanderPx * 0.75f, startY + lenPx * 0.70f,
+            bulbCenter.x, bulbCenter.y
+        )
+    }
+    drawPath(
+        path = coreSpine,
+        color = Color(0xF5180205).copy(alpha = 0.94f * alphaMul),
+        style = Stroke(width = (neckW * 0.36f).coerceAtLeast(1.0.dp.toPx()), cap = StrokeCap.Round)
+    )
+    drawCircle(
+        color = Color(0xF5180205).copy(alpha = 0.94f * alphaMul),
+        radius = bulbR * 0.58f,
+        center = bulbCenter
+    )
+
+    // 4. Subtle Specular Highlight on Droplet Bulb (wet sheen catching ambient candlelight)
+    drawCircle(
+        color = Color(0x55FFAEB3).copy(alpha = 0.45f * alphaMul),
+        radius = bulbR * 0.28f,
+        center = Offset(bulbCenter.x - bulbR * 0.32f, bulbCenter.y - bulbR * 0.30f)
+    )
+
+    // 5. Detached Secondary Runaway Droplet (gravity tear falling below the bulb)
+    if (hasDetachedDrip) {
+        val dropCenter = Offset(
+            bulbCenter.x + meanderPx * 0.2f,
+            bulbCenter.y + bulbR + 5.5.dp.toPx()
+        )
+        val dropR = (bulbR * 0.42f).coerceAtLeast(1.2.dp.toPx())
+        // Soak halo
+        drawCircle(
+            color = Color(0x30280E08).copy(alpha = 0.35f * alphaMul),
+            radius = dropR + 1.2.dp.toPx(),
+            center = dropCenter
+        )
+        // Clotted body
+        drawCircle(
+            color = Color(0xDD3E080E).copy(alpha = 0.88f * alphaMul),
+            radius = dropR,
+            center = dropCenter
+        )
+        // Core
+        drawCircle(
+            color = Color(0xF5180205).copy(alpha = 0.94f * alphaMul),
+            radius = dropR * 0.52f,
+            center = dropCenter
         )
     }
 }
