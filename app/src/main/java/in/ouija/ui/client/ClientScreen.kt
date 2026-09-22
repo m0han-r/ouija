@@ -43,6 +43,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import ouija.app.core.commands.Command
 import ouija.app.core.effects.EffectManager
 import ouija.app.core.realtime.RealtimeManager
@@ -63,6 +69,27 @@ fun ClientScreen(
     var secretTapCount by remember { mutableIntStateOf(0) }
     var spellText by remember { mutableStateOf<String?>(null) }
     var spellSpeed by remember { mutableStateOf(800L) }
+
+    // Screen shake animation when poltergeist effect is triggered
+    val shakeOffsetX = remember { Animatable(0f) }
+    val shakeOffsetY = remember { Animatable(0f) }
+    LaunchedEffect(screenState.isShaking) {
+        if (screenState.isShaking) {
+            while (true) {
+                shakeOffsetX.animateTo(
+                    targetValue = (-16..16).random().toFloat(),
+                    animationSpec = tween(durationMillis = 35, easing = LinearEasing)
+                )
+                shakeOffsetY.animateTo(
+                    targetValue = (-12..12).random().toFloat(),
+                    animationSpec = tween(durationMillis = 35, easing = LinearEasing)
+                )
+            }
+        } else {
+            shakeOffsetX.snapTo(0f)
+            shakeOffsetY.snapTo(0f)
+        }
+    }
 
     // Enforce landscape orientation and cleanup on dispose
     val context = LocalContext.current
@@ -113,7 +140,8 @@ fun ClientScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0B08))
+            .background(Color(0xFF070403))
+            .offset { IntOffset(shakeOffsetX.value.roundToInt(), shakeOffsetY.value.roundToInt()) }
     ) {
         // 100% Clean Ouija Board Canvas (Fills entire screen)
         OuijaBoardCanvas(
