@@ -274,5 +274,22 @@ data class BoardArchConfig(
     val magnifiedHeaderFontSizeSp: Float = 20f,
 
     /** Font size when HELLO/GOODBYE is seen inside the 48dp lens. Default: 20f */
-    val magnifiedFooterFontSizeSp: Float = 20f
+    val magnifiedFooterFontSizeSp: Float = 20f,
+
+
+    // -------------------------------------------------------------------------
+    // 10. BLOOD EFFECTS & WOOD DAMAGE CONFIGURATION
+    // -------------------------------------------------------------------------
+
+    /** Intensity of the blood splash and splatter effects on the board (0.0 = clean, 1.0 = full splatter). Default: 1.0f */
+    val bloodSplashIntensity: Float = 1.0f,
+
+    /** Intensity of knife cuts, scratches, and old weathered wood damage on the board (0.0 = clean, 1.0 = heavy damage). Default: 1.0f */
+    val woodDamageIntensity: Float = 1.0f,
+
+    /** Intensity of the static dripping blood runs and crusted wax on the candles (0.0 = clean candle, 1.0 = full dripping blood). Default: 1.0f */
+    val candleBloodIntensity: Float = 1.0f,
+
+    /** Legacy drip speed parameter retained for backward compatibility. Default: 4200 */
+    val candleBloodDripSpeedMs: Int = 4200
 )

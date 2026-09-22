@@ -375,7 +375,13 @@ fun OuijaBoardCanvas(
             // 1. Antique Mahogany / Walnut Wood Board Layer
             drawWoodBoard(isDimmed)
 
-            // 2. Animated Dual Candles (Bottom Left & Right Flanking the Board)
+            // 2. Old Wood Deep Cuts, Gouges & Stress Fractures
+            drawOldWoodDamageAndCuts(archConfig.woodDamageIntensity, isDimmed)
+
+            // 3. Realistic Visceral Blood Splash & Splatter Effect (Impact Bursts, Fling Spatter, Drips)
+            drawBloodSplashEffect(archConfig.bloodSplashIntensity, isDimmed)
+
+            // 4. Ritual Candles with Static Wax-Blood Drips & Flickering Flames
             val candle1Pos = Offset(size.width * archConfig.candleLeftNormX, size.height * archConfig.candleLeftNormY)
             val candle2Pos = Offset(size.width * archConfig.candleRightNormX, size.height * archConfig.candleRightNormY)
 
@@ -384,6 +390,7 @@ fun OuijaBoardCanvas(
                 flameSway = flameSway1,
                 flameHeight = flameHeight1,
                 haloAlpha = candleHaloAlpha1,
+                bloodIntensity = archConfig.candleBloodIntensity,
                 isDimmed = isDimmed
             )
 
@@ -392,6 +399,7 @@ fun OuijaBoardCanvas(
                 flameSway = flameSway2,
                 flameHeight = flameHeight2,
                 haloAlpha = candleHaloAlpha2,
+                bloodIntensity = archConfig.candleBloodIntensity,
                 isDimmed = isDimmed
             )
 
@@ -518,11 +526,531 @@ private fun DrawScope.drawCornerArc(origin: Offset, arcRadius: Float, rotationAn
     }
 }
 
+private fun DrawScope.drawOldWoodDamageAndCuts(intensity: Float, isDimmed: Boolean) {
+    if (intensity <= 0.01f) return
+    val alphaMul = (if (isDimmed) 0.65f else 1.0f) * intensity.coerceIn(0f, 1f)
+
+    // 1. Weathered Wood Grain Fractures (Meandering natural splits that follow wood grain)
+    drawMeanderingGrainSplit(
+        start = Offset(size.width * 0.07f, size.height * 0.38f),
+        length = size.width * 0.22f,
+        yVariance = 2.5.dp.toPx(),
+        alphaMul = alphaMul
+    )
+    drawMeanderingGrainSplit(
+        start = Offset(size.width * 0.35f, size.height * 0.65f),
+        length = size.width * 0.32f,
+        yVariance = 3.0.dp.toPx(),
+        alphaMul = alphaMul
+    )
+    drawMeanderingGrainSplit(
+        start = Offset(size.width * 0.70f, size.height * 0.44f),
+        length = size.width * 0.24f,
+        yVariance = 2.0.dp.toPx(),
+        alphaMul = alphaMul
+    )
+    drawMeanderingGrainSplit(
+        start = Offset(size.width * 0.16f, size.height * 0.78f),
+        length = size.width * 0.28f,
+        yVariance = 2.5.dp.toPx(),
+        alphaMul = alphaMul
+    )
+
+    // 2. Chiseled Blade Gouges (Curved, razor-sharp tapered incisions with deep shadow & torn wood grain highlights)
+    // Claw / Triple Slash in Upper-Left (between YES and Arch 1)
+    drawTaperedBladeGouge(
+        start = Offset(size.width * 0.11f, size.height * 0.22f),
+        control = Offset(size.width * 0.17f, size.height * 0.28f),
+        end = Offset(size.width * 0.23f, size.height * 0.33f),
+        maxThicknessDp = 3.2f,
+        alphaMul = alphaMul
+    )
+    drawTaperedBladeGouge(
+        start = Offset(size.width * 0.13f, size.height * 0.20f),
+        control = Offset(size.width * 0.19f, size.height * 0.26f),
+        end = Offset(size.width * 0.25f, size.height * 0.31f),
+        maxThicknessDp = 2.4f,
+        alphaMul = alphaMul
+    )
+    drawTaperedBladeGouge(
+        start = Offset(size.width * 0.10f, size.height * 0.25f),
+        control = Offset(size.width * 0.15f, size.height * 0.30f),
+        end = Offset(size.width * 0.20f, size.height * 0.34f),
+        maxThicknessDp = 1.9f,
+        alphaMul = alphaMul
+    )
+
+    // Deep Slashed Knife Gouge below NO (Upper-Right)
+    drawTaperedBladeGouge(
+        start = Offset(size.width * 0.88f, size.height * 0.24f),
+        control = Offset(size.width * 0.82f, size.height * 0.32f),
+        end = Offset(size.width * 0.77f, size.height * 0.39f),
+        maxThicknessDp = 3.6f,
+        alphaMul = alphaMul
+    )
+    // Crossing scratch across Cut 2
+    drawTaperedBladeGouge(
+        start = Offset(size.width * 0.78f, size.height * 0.29f),
+        control = Offset(size.width * 0.83f, size.height * 0.33f),
+        end = Offset(size.width * 0.86f, size.height * 0.38f),
+        maxThicknessDp = 1.8f,
+        alphaMul = alphaMul
+    )
+
+    // Blade drag scoring across lower margin (between HELLO and numbers)
+    drawTaperedBladeGouge(
+        start = Offset(size.width * 0.27f, size.height * 0.81f),
+        control = Offset(size.width * 0.34f, size.height * 0.84f),
+        end = Offset(size.width * 0.42f, size.height * 0.87f),
+        maxThicknessDp = 2.8f,
+        alphaMul = alphaMul
+    )
+
+    // Knife nick near GOODBYE
+    drawTaperedBladeGouge(
+        start = Offset(size.width * 0.74f, size.height * 0.80f),
+        control = Offset(size.width * 0.71f, size.height * 0.83f),
+        end = Offset(size.width * 0.68f, size.height * 0.86f),
+        maxThicknessDp = 2.2f,
+        alphaMul = alphaMul
+    )
+
+    // 3. Subtle edge gouges on the inner rim
+    val edgeNicks = listOf(
+        Pair(Offset(size.width * 0.06f, size.height * 0.48f), Offset(size.width * 0.08f, size.height * 0.50f)),
+        Pair(Offset(size.width * 0.94f, size.height * 0.52f), Offset(size.width * 0.92f, size.height * 0.54f)),
+        Pair(Offset(size.width * 0.52f, size.height * 0.20f), Offset(size.width * 0.54f, size.height * 0.21f)),
+        Pair(Offset(size.width * 0.48f, size.height * 0.89f), Offset(size.width * 0.50f, size.height * 0.90f))
+    )
+    edgeNicks.forEach { (p1, p2) ->
+        drawLine(
+            color = Color(0xBB0A0402).copy(alpha = 0.75f * alphaMul),
+            start = p1,
+            end = p2,
+            strokeWidth = 1.6.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = Color(0x882E0509).copy(alpha = 0.65f * alphaMul),
+            start = p1,
+            end = p2,
+            strokeWidth = 0.9.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+private fun DrawScope.drawMeanderingGrainSplit(
+    start: Offset,
+    length: Float,
+    yVariance: Float,
+    alphaMul: Float
+) {
+    val steps = 8
+    val dx = length / steps
+    val shadowPath = Path()
+    shadowPath.moveTo(start.x, start.y)
+
+    var currX = start.x
+    var currY = start.y
+    val yOffsets = floatArrayOf(0f, 0.45f, -0.6f, 0.75f, -0.35f, 0.65f, -0.5f, 0.3f, 0f)
+
+    for (i in 1..steps) {
+        val nextX = start.x + i * dx
+        val nextY = start.y + yOffsets[i % yOffsets.size] * yVariance
+        val cpX = (currX + nextX) / 2f
+        val cpY = currY + (yOffsets[(i + 2) % yOffsets.size] * yVariance * 0.4f)
+        shadowPath.quadraticTo(cpX, cpY, nextX, nextY)
+        currX = nextX
+        currY = nextY
+    }
+
+    val splitColor = Color(0x33000000).copy(alpha = 0.35f * alphaMul)
+    val highlightColor = Color(0x18FFFFFF).copy(alpha = 0.20f * alphaMul)
+
+    drawPath(shadowPath, color = splitColor, style = Stroke(width = 1.3.dp.toPx(), cap = StrokeCap.Round))
+    withTransform({ translate(0f, 1f) }) {
+        drawPath(shadowPath, color = highlightColor, style = Stroke(width = 0.7.dp.toPx(), cap = StrokeCap.Round))
+    }
+}
+
+private fun DrawScope.drawTaperedBladeGouge(
+    start: Offset,
+    control: Offset,
+    end: Offset,
+    maxThicknessDp: Float,
+    alphaMul: Float
+) {
+    val steps = 14
+    val maxThicknessPx = maxThicknessDp.dp.toPx()
+    val leftPts = mutableListOf<Offset>()
+    val rightPts = mutableListOf<Offset>()
+    val centerPts = mutableListOf<Offset>()
+
+    for (i in 0..steps) {
+        val t = i.toFloat() / steps
+        val omt = 1f - t
+        val bx = omt * omt * start.x + 2f * omt * t * control.x + t * t * end.x
+        val by = omt * omt * start.y + 2f * omt * t * control.y + t * t * end.y
+        centerPts.add(Offset(bx, by))
+
+        val tx = 2f * omt * (control.x - start.x) + 2f * t * (end.x - control.x)
+        val ty = 2f * omt * (control.y - start.y) + 2f * t * (end.y - control.y)
+        val len = hypot(tx, ty).coerceAtLeast(0.001f)
+        val nx = -ty / len
+        val ny = tx / len
+
+        val taper = sin(t * Math.PI.toFloat())
+        val w = maxThicknessPx * taper * (0.35f + 0.65f * taper) * 0.5f
+
+        leftPts.add(Offset(bx + nx * w, by + ny * w))
+        rightPts.add(Offset(bx - nx * w, by - ny * w))
+    }
+
+    val gougePath = Path().apply {
+        moveTo(leftPts.first().x, leftPts.first().y)
+        for (i in 1 until leftPts.size) {
+            lineTo(leftPts[i].x, leftPts[i].y)
+        }
+        for (i in rightPts.indices.reversed()) {
+            lineTo(rightPts[i].x, rightPts[i].y)
+        }
+        close()
+    }
+
+    // 1. Deep carved furrow shadow
+    val shadowColor = Color(0xF2060201).copy(alpha = 0.90f * alphaMul)
+    drawPath(gougePath, color = shadowColor)
+
+    // 2. Dried clotted blood crust seeped into the groove center
+    val bloodInCut = Color(0xDD280306).copy(alpha = 0.82f * alphaMul)
+    val bloodCenterPath = Path().apply {
+        moveTo(centerPts.first().x, centerPts.first().y)
+        for (i in 1 until centerPts.size) {
+            lineTo(centerPts[i].x, centerPts[i].y)
+        }
+    }
+    drawPath(bloodCenterPath, color = bloodInCut, style = Stroke(width = maxThicknessPx * 0.5f, cap = StrokeCap.Round))
+
+    // 3. Torn raw wood fiber highlight along the top chiseled lip catching candlelight
+    val highlightPath = Path().apply {
+        moveTo(leftPts.first().x, leftPts.first().y)
+        for (i in 1 until leftPts.size) {
+            lineTo(leftPts[i].x, leftPts[i].y)
+        }
+    }
+    val splinterColor = Color(0x40DEB670).copy(alpha = 0.45f * alphaMul)
+    drawPath(highlightPath, color = splinterColor, style = Stroke(width = 0.8.dp.toPx(), cap = StrokeCap.Round))
+}
+
+private fun DrawScope.drawBloodSplashEffect(intensity: Float, isDimmed: Boolean) {
+    if (intensity <= 0.01f) return
+    val alphaMul = (if (isDimmed) 0.70f else 1.0f) * intensity.coerceIn(0f, 1f)
+
+    // -------------------------------------------------------------------------
+    // Stain 1: Organic Clotted Impact Pool (Lower-Left: between Arch 2 curve and Candle)
+    // -------------------------------------------------------------------------
+    val splash1Center = Offset(size.width * 0.14f, size.height * 0.65f)
+    drawOrganicBloodStain(
+        center = splash1Center,
+        baseRadius = 22.dp.toPx(),
+        seed = 1.4f,
+        alphaMul = alphaMul
+    )
+
+    // Organic satellite droplets thrown from impact 1
+    val splash1Satellites = listOf(
+        Pair(Offset(-28f, -22f), 2.6f),
+        Pair(Offset(30f, -18f), 2.4f),
+        Pair(Offset(38f, 14f), 1.9f),
+        Pair(Offset(28f, 26f), 2.2f),
+        Pair(Offset(-32f, 14f), 2.1f),
+        Pair(Offset(-18f, -34f), 1.6f),
+        Pair(Offset(22f, -38f), 1.7f),
+        Pair(Offset(48f, -6f), 1.4f),
+        Pair(Offset(-42f, -8f), 1.7f),
+        Pair(Offset(14f, 44f), 2.0f),
+        Pair(Offset(-14f, 32f), 1.5f)
+    )
+    drawMicroSpatterMist(splash1Center, splash1Satellites, alphaMul)
+
+    // -------------------------------------------------------------------------
+    // Stain 2: Directional Slasher Cast-Off / Fling Spatter
+    // (Upper-Right: above Arch 2, angling down-right towards margin)
+    // -------------------------------------------------------------------------
+    val flingOrigin = Offset(size.width * 0.74f, size.height * 0.22f)
+    val flingAngle = 0.64f // ~36.6 degrees down-right
+    val flingDistances = listOf(14f, 36f, 62f, 88f, 114f)
+    val flingSizes = listOf(Pair(4.2f, 2.0f), Pair(3.4f, 1.7f), Pair(2.8f, 1.4f), Pair(2.2f, 1.2f), Pair(1.7f, 1.0f))
+
+    for (i in flingDistances.indices) {
+        val dist = flingDistances[i].dp.toPx()
+        val (len, wid) = flingSizes[i]
+        val dropCenter = flingOrigin + Offset(
+            dist * cos(flingAngle.toDouble()).toFloat(),
+            dist * sin(flingAngle.toDouble()).toFloat()
+        )
+        drawDirectionalSpatter(
+            center = dropCenter,
+            angleRad = flingAngle,
+            lengthDp = len,
+            widthDp = wid,
+            alphaMul = alphaMul
+        )
+    }
+
+    // Fine spray mist droplets flanking the directional fling
+    val flingMist = listOf(
+        Pair(Offset(-12f, -6f), 1.3f),
+        Pair(Offset(10f, 2f), 1.5f),
+        Pair(Offset(32f, 10f), 1.4f),
+        Pair(Offset(20f, 24f), 1.6f),
+        Pair(Offset(44f, 22f), 1.3f),
+        Pair(Offset(58f, 24f), 1.2f),
+        Pair(Offset(66f, 38f), 1.4f),
+        Pair(Offset(80f, 36f), 1.2f),
+        Pair(Offset(94f, 46f), 1.1f),
+        Pair(Offset(104f, 54f), 0.9f)
+    )
+    drawMicroSpatterMist(flingOrigin, flingMist, alphaMul)
+
+    // -------------------------------------------------------------------------
+    // Stain 3: Dried Blood Stain below the Numbers Row
+    // (Lower-Center: roughly normX = 0.46f, normY = 0.83f)
+    // -------------------------------------------------------------------------
+    val splash3Center = Offset(size.width * 0.46f, size.height * 0.83f)
+    drawOrganicBloodStain(
+        center = splash3Center,
+        baseRadius = 15.dp.toPx(),
+        seed = 3.8f,
+        alphaMul = alphaMul
+    )
+    val splash3Satellites = listOf(
+        Pair(Offset(-18f, -14f), 2.0f),
+        Pair(Offset(20f, -12f), 2.2f),
+        Pair(Offset(24f, 10f), 1.7f),
+        Pair(Offset(-22f, 12f), 1.8f),
+        Pair(Offset(0f, 22f), 2.1f),
+        Pair(Offset(-12f, -22f), 1.4f),
+        Pair(Offset(14f, -20f), 1.5f)
+    )
+    drawMicroSpatterMist(splash3Center, splash3Satellites, alphaMul)
+
+    // -------------------------------------------------------------------------
+    // Stain 4: Occult Knife-Flick Droplet Trails (Upper-Left near Moon)
+    // -------------------------------------------------------------------------
+    val flickOrigin = Offset(size.width * 0.17f, size.height * 0.28f)
+    drawOrganicBloodStain(
+        center = flickOrigin,
+        baseRadius = 10.dp.toPx(),
+        seed = 5.2f,
+        alphaMul = alphaMul
+    )
+    drawDirectionalSpatter(
+        center = flickOrigin + Offset(16.dp.toPx(), 12.dp.toPx()),
+        angleRad = 0.65f,
+        lengthDp = 3.2f,
+        widthDp = 1.6f,
+        alphaMul = alphaMul
+    )
+    drawDirectionalSpatter(
+        center = flickOrigin + Offset(30.dp.toPx(), 22.dp.toPx()),
+        angleRad = 0.65f,
+        lengthDp = 2.4f,
+        widthDp = 1.3f,
+        alphaMul = alphaMul
+    )
+
+    // -------------------------------------------------------------------------
+    // Stain 5: Fine Micro-Droplets across the Board Margins
+    // -------------------------------------------------------------------------
+    val marginDroplets = listOf(
+        Pair(Offset(size.width * 0.05f, size.height * 0.42f), 1.6f),
+        Pair(Offset(size.width * 0.08f, size.height * 0.52f), 1.9f),
+        Pair(Offset(size.width * 0.28f, size.height * 0.24f), 1.4f),
+        Pair(Offset(size.width * 0.35f, size.height * 0.52f), 1.8f),
+        Pair(Offset(size.width * 0.65f, size.height * 0.48f), 1.9f),
+        Pair(Offset(size.width * 0.72f, size.height * 0.66f), 2.0f),
+        Pair(Offset(size.width * 0.88f, size.height * 0.44f), 1.8f),
+        Pair(Offset(size.width * 0.92f, size.height * 0.62f), 1.6f),
+        Pair(Offset(size.width * 0.55f, size.height * 0.88f), 1.9f),
+        Pair(Offset(size.width * 0.32f, size.height * 0.86f), 1.7f)
+    )
+    marginDroplets.forEach { (pos, rDp) ->
+        drawCircle(
+            color = Color(0x993B070C).copy(alpha = 0.70f * alphaMul),
+            radius = rDp.dp.toPx(),
+            center = pos
+        )
+    }
+}
+
+private fun DrawScope.drawOrganicBloodStain(
+    center: Offset,
+    baseRadius: Float,
+    seed: Float,
+    alphaMul: Float
+) {
+    val count = 16
+    val step = (2.0 * Math.PI / count).toFloat()
+
+    fun buildOrganicPoints(scale: Float, stretchX: Float, stretchY: Float): List<Offset> {
+        val pts = mutableListOf<Offset>()
+        for (i in 0 until count) {
+            val angle = i * step
+            val harmonic = 1.0f +
+                0.24f * sin(i * 1.35f + seed) -
+                0.16f * cos((i * 2.1f).toDouble()).toFloat() +
+                0.10f * sin(i * 3.7f + 0.8f)
+            val r = baseRadius * scale * harmonic
+            val px = center.x + (r * cos(angle.toDouble())).toFloat() * stretchX
+            val py = center.y + (r * sin(angle.toDouble())).toFloat() * stretchY
+            pts.add(Offset(px, py))
+        }
+        return pts
+    }
+
+    fun makeSmoothPath(pts: List<Offset>): Path {
+        val path = Path()
+        val n = pts.size
+        val firstMidX = (pts[0].x + pts[1].x) / 2f
+        val firstMidY = (pts[0].y + pts[1].y) / 2f
+        path.moveTo(firstMidX, firstMidY)
+        for (i in 1 until n) {
+            val next = (i + 1) % n
+            val midX = (pts[i].x + pts[next].x) / 2f
+            val midY = (pts[i].y + pts[next].y) / 2f
+            path.quadraticTo(pts[i].x, pts[i].y, midX, midY)
+        }
+        val wrapMidX = (pts[0].x + pts[1].x) / 2f
+        val wrapMidY = (pts[0].y + pts[1].y) / 2f
+        path.quadraticTo(pts[0].x, pts[0].y, wrapMidX, wrapMidY)
+        path.close()
+        return path
+    }
+
+    // 1. Outer capillary soak ring absorbed into porous mahogany grain
+    val soakPts = buildOrganicPoints(scale = 1.28f, stretchX = 1.22f, stretchY = 0.88f)
+    val soakPath = makeSmoothPath(soakPts)
+    drawPath(
+        path = soakPath,
+        color = Color(0x35280E08).copy(alpha = 0.38f * alphaMul)
+    )
+
+    // 2. Coagulated maroon body
+    val bodyPts = buildOrganicPoints(scale = 1.0f, stretchX = 1.16f, stretchY = 0.90f)
+    val bodyPath = makeSmoothPath(bodyPts)
+    drawPath(
+        path = bodyPath,
+        color = Color(0xBB4E0A12).copy(alpha = 0.85f * alphaMul)
+    )
+
+    // 3. Dense clotted core
+    val corePts = buildOrganicPoints(scale = 0.60f, stretchX = 1.10f, stretchY = 0.92f)
+    val corePath = makeSmoothPath(corePts)
+    drawPath(
+        path = corePath,
+        color = Color(0xF0180205).copy(alpha = 0.92f * alphaMul)
+    )
+
+    // 4. Capillary seepage tendrils running horizontally along wood grain
+    val tendrilColor = Color(0x55380C10).copy(alpha = 0.50f * alphaMul)
+    val leftTendrilY = center.y + baseRadius * 0.15f
+    drawLine(
+        color = tendrilColor,
+        start = Offset(center.x - baseRadius * 1.2f, leftTendrilY),
+        end = Offset(center.x - baseRadius * 1.65f, leftTendrilY),
+        strokeWidth = 1.2.dp.toPx(),
+        cap = StrokeCap.Round
+    )
+    val rightTendrilY = center.y - baseRadius * 0.20f
+    drawLine(
+        color = tendrilColor,
+        start = Offset(center.x + baseRadius * 1.18f, rightTendrilY),
+        end = Offset(center.x + baseRadius * 1.60f, rightTendrilY),
+        strokeWidth = 1.0.dp.toPx(),
+        cap = StrokeCap.Round
+    )
+}
+
+private fun DrawScope.drawDirectionalSpatter(
+    center: Offset,
+    angleRad: Float,
+    lengthDp: Float,
+    widthDp: Float,
+    alphaMul: Float
+) {
+    val lenPx = lengthDp.dp.toPx()
+    val widPx = widthDp.dp.toPx()
+    val deg = Math.toDegrees(angleRad.toDouble()).toFloat()
+
+    withTransform({
+        translate(center.x, center.y)
+        rotate(deg, pivot = Offset.Zero)
+    }) {
+        // Outer soak shadow
+        drawOval(
+            color = Color(0x35280E08).copy(alpha = 0.40f * alphaMul),
+            topLeft = Offset(-lenPx * 0.65f, -widPx * 0.70f),
+            size = Size(lenPx * 1.30f, widPx * 1.40f)
+        )
+
+        // Main clotted body
+        drawOval(
+            color = Color(0xCC3E080E).copy(alpha = 0.88f * alphaMul),
+            topLeft = Offset(-lenPx * 0.5f, -widPx * 0.5f),
+            size = Size(lenPx, widPx)
+        )
+
+        // Dense core
+        drawOval(
+            color = Color(0xF5180205).copy(alpha = 0.94f * alphaMul),
+            topLeft = Offset(-lenPx * 0.28f, -widPx * 0.32f),
+            size = Size(lenPx * 0.65f, widPx * 0.64f)
+        )
+
+        // Tapered back tail pointing along flight trajectory
+        val tailPath = Path().apply {
+            moveTo(-lenPx * 0.45f, 0f)
+            lineTo(-lenPx * 0.95f, 0f)
+        }
+        drawPath(
+            tailPath,
+            color = Color(0x9938070D).copy(alpha = 0.75f * alphaMul),
+            style = Stroke(width = widPx * 0.4f, cap = StrokeCap.Round)
+        )
+    }
+}
+
+private fun DrawScope.drawMicroSpatterMist(
+    origin: Offset,
+    satellites: List<Pair<Offset, Float>>,
+    alphaMul: Float
+) {
+    satellites.forEach { (offsetDp, rDp) ->
+        val center = origin + Offset(offsetDp.x.dp.toPx(), offsetDp.y.dp.toPx())
+        val rPx = rDp.dp.toPx()
+        // Soft capillary soak
+        drawCircle(
+            color = Color(0x3025090C).copy(alpha = 0.40f * alphaMul),
+            radius = rPx + 0.8.dp.toPx(),
+            center = center
+        )
+        // Dark clotted bead
+        drawCircle(
+            color = Color(0xDD3B070D).copy(alpha = 0.85f * alphaMul),
+            radius = rPx,
+            center = center
+        )
+    }
+}
+
 private fun DrawScope.drawCandle(
     position: Offset,
     flameSway: Float,
     flameHeight: Float,
     haloAlpha: Float,
+    bloodIntensity: Float,
     isDimmed: Boolean
 ) {
     val candleWidth = 14.dp.toPx()
@@ -576,18 +1104,125 @@ private fun DrawScope.drawCandle(
         size = pillarRect
     )
 
-    // Dripping wax trails on the side of the candle
+    // Natural wax drip trails on the side of the candle
     val dripPath = Path().apply {
         moveTo(pillarLeft + 2.dp.toPx(), pillarTop)
-        lineTo(pillarLeft + 2.dp.toPx(), pillarTop + 16.dp.toPx())
+        lineTo(pillarLeft + 2.dp.toPx(), pillarTop + 14.dp.toPx())
         cubicTo(
-            pillarLeft + 2.dp.toPx(), pillarTop + 20.dp.toPx(),
-            pillarLeft + 5.dp.toPx(), pillarTop + 20.dp.toPx(),
-            pillarLeft + 5.dp.toPx(), pillarTop + 16.dp.toPx()
+            pillarLeft + 2.dp.toPx(), pillarTop + 18.dp.toPx(),
+            pillarLeft + 4.dp.toPx(), pillarTop + 18.dp.toPx(),
+            pillarLeft + 4.dp.toPx(), pillarTop + 14.dp.toPx()
         )
-        lineTo(pillarLeft + 5.dp.toPx(), pillarTop)
+        lineTo(pillarLeft + 4.dp.toPx(), pillarTop)
     }
     drawPath(dripPath, color = Color(0xFFFFFBF2))
+
+    // -------------------------------------------------------------------------
+    // STATIC NATURAL CANDLE BLOOD DRIPS (Hardened coagulated wax-blood trickles)
+    // -------------------------------------------------------------------------
+    if (bloodIntensity > 0.01f) {
+        val bAlpha = bloodIntensity.coerceIn(0f, 1f)
+
+        // A. Dried Blood & Melted Wax Crust around the Top Rim
+        drawOval(
+            color = Color(0xFF380407).copy(alpha = 0.95f * bAlpha),
+            topLeft = Offset(pillarLeft + 1.dp.toPx(), pillarTop - 1.5.dp.toPx()),
+            size = Size(candleWidth - 2.dp.toPx(), 4.5.dp.toPx())
+        )
+
+        // B. Primary Winding Trickle with Frozen Hanging Droplet (Front-Left)
+        val trickle1Path = Path().apply {
+            val startX = pillarLeft + candleWidth * 0.32f
+            val startY = pillarTop
+            moveTo(startX - 1.2.dp.toPx(), startY)
+            cubicTo(
+                startX - 1.4.dp.toPx(), startY + 8.dp.toPx(),
+                startX - 0.6.dp.toPx(), startY + 16.dp.toPx(),
+                startX + 0.5.dp.toPx(), startY + 24.dp.toPx()
+            )
+            val bulbX = startX + 0.7.dp.toPx()
+            val bulbY = startY + 33.dp.toPx()
+            val bulbR = 2.4.dp.toPx()
+            cubicTo(
+                bulbX - bulbR * 1.15f, bulbY - bulbR * 0.45f,
+                bulbX - bulbR * 0.95f, bulbY + bulbR,
+                bulbX, bulbY + bulbR
+            )
+            cubicTo(
+                bulbX + bulbR * 0.95f, bulbY + bulbR,
+                bulbX + bulbR * 1.15f, bulbY - bulbR * 0.45f,
+                bulbX + 0.6.dp.toPx(), startY + 24.dp.toPx()
+            )
+            cubicTo(
+                startX + 0.8.dp.toPx(), startY + 16.dp.toPx(),
+                startX + 1.2.dp.toPx(), startY + 8.dp.toPx(),
+                startX + 1.4.dp.toPx(), startY
+            )
+            close()
+        }
+        drawPath(trickle1Path, color = Color(0xEE4E080F).copy(alpha = 0.92f * bAlpha))
+        val vein1Path = Path().apply {
+            val startX = pillarLeft + candleWidth * 0.32f
+            val startY = pillarTop
+            moveTo(startX, startY)
+            quadraticTo(startX - 0.5.dp.toPx(), startY + 14.dp.toPx(), startX + 0.7.dp.toPx(), startY + 31.dp.toPx())
+        }
+        drawPath(vein1Path, color = Color(0xF5240205).copy(alpha = 0.94f * bAlpha), style = Stroke(width = 1.0.dp.toPx(), cap = StrokeCap.Round))
+
+        // Soft specular reflection catching flame light on the droplet
+        drawCircle(
+            color = Color(0x55FFAEB3).copy(alpha = 0.50f * bAlpha),
+            radius = 0.9.dp.toPx(),
+            center = Offset(pillarLeft + candleWidth * 0.32f + 0.2.dp.toPx(), pillarTop + 32.dp.toPx())
+        )
+
+        // C. Secondary Frozen Trickle (Right Flank)
+        val trickle2Path = Path().apply {
+            val startX = pillarLeft + candleWidth - 2.8.dp.toPx()
+            val startY = pillarTop
+            moveTo(startX - 0.9.dp.toPx(), startY)
+            lineTo(startX - 0.7.dp.toPx(), startY + 18.dp.toPx())
+            val bulbR = 1.5.dp.toPx()
+            val bulbY = startY + 21.dp.toPx()
+            cubicTo(
+                startX - bulbR * 1.1f, bulbY - bulbR * 0.4f,
+                startX - bulbR * 0.9f, bulbY + bulbR,
+                startX, bulbY + bulbR
+            )
+            cubicTo(
+                startX + bulbR * 0.9f, bulbY + bulbR,
+                startX + bulbR * 1.1f, bulbY - bulbR * 0.4f,
+                startX + 0.7.dp.toPx(), startY + 18.dp.toPx()
+            )
+            lineTo(startX + 0.9.dp.toPx(), startY)
+            close()
+        }
+        drawPath(trickle2Path, color = Color(0xDD3E060A).copy(alpha = 0.88f * bAlpha))
+
+        // D. Short Center Micro-Run
+        drawLine(
+            color = Color(0xAA380407).copy(alpha = 0.80f * bAlpha),
+            start = Offset(pillarLeft + candleWidth * 0.58f, pillarTop),
+            end = Offset(pillarLeft + candleWidth * 0.58f, pillarTop + 11.dp.toPx()),
+            strokeWidth = 1.1.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+
+        // E. Coagulated Blood Gathering in the Candlestick Dish at the Base
+        drawOval(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color(0xF0260205).copy(alpha = 0.94f * bAlpha),
+                    Color(0xCC3D070D).copy(alpha = 0.85f * bAlpha),
+                    Color.Transparent
+                ),
+                center = baseCenter,
+                radius = standWidth * 0.40f
+            ),
+            topLeft = Offset(baseCenter.x - standWidth * 0.36f, baseCenter.y - standHeight * 0.36f),
+            size = Size(standWidth * 0.72f, standHeight * 0.72f)
+        )
+    }
 
     // Curved wax rim at the top of the candle
     drawOval(
