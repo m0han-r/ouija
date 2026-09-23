@@ -21,7 +21,7 @@ data class CommandArgs(
     val sudden: Boolean = false,
     val videoId: String = "",
     val text: String = "",
-    val speedMs: Long = 800L,
+    val speedMs: Long = 1800L,
     val targetX: Float = 0.5f,
     val targetY: Float = 0.5f,
     val durationMs: Long = 1000L,
@@ -32,10 +32,10 @@ data class CommandArgs(
 )
 
 sealed class Command {
-    data class Vibrate(val pattern: List<Long> = listOf(0L, 300L, 100L, 600L), val amplitude: Int = 255) : Command()
+    data class Vibrate(val pattern: List<Long> = listOf(0L, 800L, 120L, 1200L, 150L, 1500L, 100L, 800L), val amplitude: Int = 255) : Command()
     data class Sound(val soundId: String, val sudden: Boolean = false) : Command()
     data class Video(val videoId: String) : Command()
-    data class Spell(val text: String, val speedMs: Long = 800L) : Command()
+    data class Spell(val text: String, val speedMs: Long = 1800L) : Command()
     data class MovePlanchette(val targetX: Float, val targetY: Float) : Command()
     data class Flashlight(val durationMs: Long = 2000L) : Command()
     data class ScreenFlash(val mode: String) : Command() // STROBE, BLACKOUT, RED, GLITCH

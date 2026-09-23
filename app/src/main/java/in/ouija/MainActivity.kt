@@ -24,6 +24,7 @@ import ouija.app.core.realtime.RealtimeManager
 import ouija.app.core.utils.CodeGenerator
 import ouija.app.ui.client.ClientScreen
 import ouija.app.ui.server.ServerScreen
+import ouija.app.ui.splash.SplashScreen
 import ouija.app.ui.theme.OuijaTheme
 
 class MainActivity : ComponentActivity() {
@@ -45,8 +46,18 @@ class MainActivity : ComponentActivity() {
 
                     NavHost(
                         navController = navController,
-                        startDestination = "client_mode"
+                        startDestination = "splash"
                     ) {
+                        composable("splash") {
+                            SplashScreen(
+                                onAccept = {
+                                    navController.navigate("client_mode") {
+                                        popUpTo("splash") { inclusive = true }
+                                    }
+                                }
+                            )
+                        }
+
                         composable("client_mode") {
                             ClientScreen(
                                 roomCode = roomCode,

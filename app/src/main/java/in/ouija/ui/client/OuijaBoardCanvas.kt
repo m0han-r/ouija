@@ -67,7 +67,8 @@ val CaptainHowdyFont = FontFamily(
 @Composable
 fun OuijaBoardCanvas(
     spellText: String? = null,
-    spellSpeedMs: Long = 800L,
+    spellSpeedMs: Long = 1800L,
+    spellTrigger: Long = 0L,
     isDimmed: Boolean = false,
     archConfig: BoardArchConfig = BoardArchConfig(),
     onPositionChanged: (Float, Float, String) -> Unit = { _, _, _ -> },
@@ -295,29 +296,50 @@ fun OuijaBoardCanvas(
         list
     }
 
-    // Auto-spelling animation handler with eerie non-linear easing and arrival haptics
-    LaunchedEffect(spellText) {
+    // Auto-spelling animation handler with eerie slow creeping movement and arrival haptics
+    LaunchedEffect(spellText, spellTrigger) {
         if (!spellText.isNullOrBlank()) {
-            val upper = spellText.uppercase()
-            val eerieEasing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1.06f)
+            val upper = spellText.trim().uppercase()
+            // Slower, heavy creeping non-linear easing
+            val eerieEasing = CubicBezierEasing(0.35f, 0.0f, 0.15f, 1.0f)
 
-            for (char in upper) {
-                val target = targets.find { it.name == char.toString() }
-                    ?: if (char == ' ') targets.find { it.name == "GOODBYE" } else null
+            // Direct corner word targeting: YES, NO, HELLO, GOODBYE
+            val cornerTarget = if (upper in listOf("YES", "NO", "HELLO", "GOODBYE")) {
+                targets.find { it.name == upper }
+            } else null
 
-                if (target != null) {
-                    val targetX = target.normX * boardWidth
-                    val targetY = target.normY * boardHeight - apertureOffsetY // Center magnifying aperture over letter
+            if (cornerTarget != null) {
+                val targetX = cornerTarget.normX * boardWidth
+                val targetY = cornerTarget.normY * boardHeight - apertureOffsetY
+                // Slower deliberate crawl across the board to corner targets (2500ms minimum)
+                val animTime = (spellSpeedMs * 1.4f).toInt().coerceAtLeast(2500)
+                launch {
+                    planchetteX.animateTo(targetX, tween(animTime, easing = eerieEasing))
+                }
+                planchetteY.animateTo(targetY, tween(animTime, easing = eerieEasing))
 
-                    val animTime = spellSpeedMs.toInt().coerceAtLeast(300)
-                    launch {
-                        planchetteX.animateTo(targetX, tween(animTime, easing = eerieEasing))
+                triggerArrival()
+                onPositionChanged(cornerTarget.normX, cornerTarget.normY, cornerTarget.name)
+            } else {
+                for (char in upper) {
+                    val target = targets.find { it.name == char.toString() }
+                        ?: if (char == ' ') targets.find { it.name == "GOODBYE" } else null
+
+                    if (target != null) {
+                        val targetX = target.normX * boardWidth
+                        val targetY = target.normY * boardHeight - apertureOffsetY // Center magnifying aperture over letter
+
+                        // Slow, deliberate creeping movement from letter to letter (1600ms minimum)
+                        val animTime = spellSpeedMs.toInt().coerceAtLeast(1600)
+                        launch {
+                            planchetteX.animateTo(targetX, tween(animTime, easing = eerieEasing))
+                        }
+                        planchetteY.animateTo(targetY, tween(animTime, easing = eerieEasing))
+
+                        triggerArrival()
+                        onPositionChanged(target.normX, target.normY, target.name)
+                        delay(700L) // Suspenseful pause on each letter for readability
                     }
-                    planchetteY.animateTo(targetY, tween(animTime, easing = eerieEasing))
-
-                    triggerArrival()
-                    onPositionChanged(target.normX, target.normY, target.name)
-                    delay(400L)
                 }
             }
         }

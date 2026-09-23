@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.camera2.CameraManager
 import android.media.AudioAttributes
 import android.media.AudioManager
+import android.media.MediaPlayer
 import android.media.ToneGenerator
 import android.os.Build
 import android.os.VibrationEffect
@@ -19,6 +20,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import ouija.app.R
 import ouija.app.core.commands.Command
 import java.util.Locale
 
@@ -42,6 +45,7 @@ class EffectManager(
     private var torchJob: Job? = null
     private var shakeJob: Job? = null
     private var flashJob: Job? = null
+    private var activeMediaPlayer: MediaPlayer? = null
 
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
@@ -92,8 +96,9 @@ class EffectManager(
     private fun triggerVibration(pattern: List<Long>, amplitude: Int) {
         try {
             val safeAmplitude = if (amplitude == 0) 255 else amplitude.coerceIn(1, 255)
-            val timings = pattern.ifEmpty { listOf(0L, 300L, 100L, 600L) }.toLongArray()
-            Log.d(TAG, "Triggering vibration (amplitude = $safeAmplitude, timings = ${timings.joinToString()})")
+            // Default: Extended 4.7s violent paranormal tremor waveform
+            val timings = pattern.ifEmpty { listOf(0L, 800L, 120L, 1200L, 150L, 1500L, 100L, 800L) }.toLongArray()
+            Log.d(TAG, "Triggering prolonged vibration (amplitude = $safeAmplitude, timings = ${timings.joinToString()})")
 
             @Suppress("DEPRECATION")
             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -109,13 +114,31 @@ class EffectManager(
                 .build()
 
             val amplitudes = IntArray(timings.size) { if (it % 2 == 1) safeAmplitude else 0 }
-            val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+            val effect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    VibrationEffect.createWaveform(timings, amplitudes, -1)
+                } catch (_: Exception) {
+                    VibrationEffect.createWaveform(timings, -1)
+                }
+            } else {
+                null
+            }
 
             try {
-                vibrator?.vibrate(effect, audioAttributes)
+                if (effect != null) {
+                    vibrator?.vibrate(effect, audioAttributes)
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(timings, -1)
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "AudioAttributes vibration failed, falling back to standard: ${e.message}")
-                vibrator?.vibrate(effect)
+                if (effect != null) {
+                    vibrator?.vibrate(effect)
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(timings, -1)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error executing vibration: ${e.message}", e)
@@ -146,25 +169,45 @@ class EffectManager(
 
     private fun triggerSound(soundId: String, sudden: Boolean) {
         Log.d(TAG, "Triggering sound: $soundId (sudden = $sudden)")
-        scope.launch(Dispatchers.IO) {
+        scope.launch(Dispatchers.Main) {
             try {
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
-                val safeCap = (maxVol * 0.7f).toInt() // 70% safety cap
+                val targetVol = if (sudden || soundId.equals("scream", ignoreCase = true)) {
+                    (maxVol * 0.95f).toInt().coerceAtLeast(1)
+                } else {
+                    (maxVol * 0.75f).toInt().coerceAtLeast(1)
+                }
+                audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
 
-                audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, safeCap, 0)
-
-                val toneType = when (soundId.lowercase()) {
-                    "scream", "loud" -> ToneGenerator.TONE_CDMA_HIGH_L
-                    "whisper", "knock" -> ToneGenerator.TONE_PROP_BEEP
-                    "door" -> ToneGenerator.TONE_SUP_ERROR
-                    else -> ToneGenerator.TONE_PROP_PROMPT
+                val resId = when (soundId.lowercase().replace(" ", "_").replace("-", "_")) {
+                    "scream", "loud" -> R.raw.scream
+                    "water_drop", "water", "drip", "droplet" -> R.raw.water_drop
+                    "breath", "choking", "whisper", "breathing" -> R.raw.breath
+                    else -> null
                 }
 
-                val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
-                toneGen.startTone(toneType, if (sudden) 1000 else 600)
-                delay(1200)
-                toneGen.release()
+                if (resId != null) {
+                    try {
+                        activeMediaPlayer?.stop()
+                        activeMediaPlayer?.release()
+                    } catch (_: Exception) {}
+
+                    val mp = MediaPlayer.create(context, resId)
+                    activeMediaPlayer = mp
+                    mp?.setOnCompletionListener {
+                        it.release()
+                        if (activeMediaPlayer == it) activeMediaPlayer = null
+                    }
+                    mp?.start()
+                } else {
+                    withContext(Dispatchers.IO) {
+                        val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+                        toneGen.startTone(ToneGenerator.TONE_PROP_PROMPT, 600)
+                        delay(700)
+                        toneGen.release()
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error playing sound: ${e.message}", e)
             }
@@ -236,6 +279,12 @@ class EffectManager(
         torchJob?.cancel()
         shakeJob?.cancel()
         flashJob?.cancel()
+
+        try {
+            activeMediaPlayer?.stop()
+            activeMediaPlayer?.release()
+            activeMediaPlayer = null
+        } catch (_: Exception) {}
 
         try {
             val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager

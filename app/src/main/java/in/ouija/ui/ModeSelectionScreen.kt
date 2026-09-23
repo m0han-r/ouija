@@ -52,9 +52,9 @@ fun ModeSelectionScreen(
             )
 
             Text(
-                text = "PARANORMAL PRANK & SPIRIT BOARD",
+                text = "OMINOUS UNKNOWN INTERFERENCE OF JUST AUDIO",
                 color = Color(0xAA887766),
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 textAlign = TextAlign.Center
             )

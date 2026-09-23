@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -231,14 +232,26 @@ fun ServerScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Quick Buttons
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("YES", "NO", "GOODBYE", "BEHIND YOU").forEach { quick ->
+                // Quick Buttons (Corner Words: YES, NO, HELLO, GOODBYE)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("YES", "NO", "HELLO", "GOODBYE").forEach { quick ->
                         Button(
                             onClick = { triggerScare(Command.Spell(quick)) },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                            shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A1C10))
                         ) {
-                            Text(quick, color = Color(0xFFD4AF37), fontSize = 10.sp)
+                            Text(
+                                text = quick,
+                                color = Color(0xFFD4AF37),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
                         }
                     }
                 }
@@ -258,41 +271,45 @@ fun ServerScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Grid of Scare Triggers
+                // Grid of Scare Triggers (4 balanced rows)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Row 1: Jump Scare Videos
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ScareButton("📳 VIBRATE", Modifier.weight(1f)) {
-                            triggerScare(Command.Vibrate(listOf(0L, 300L, 100L, 600L), 255))
+                        ScareButton("👻 JUMP SCARE 1", Modifier.weight(1f)) {
+                            triggerScare(Command.Video("jump_scare_1"))
                         }
-                        ScareButton("🔊 SCREAM", Modifier.weight(1f)) {
-                            triggerScare(Command.Sound("scream", sudden = true))
+                        ScareButton("👻 JUMP SCARE 2", Modifier.weight(1f)) {
+                            triggerScare(Command.Video("jump_scare_2"))
                         }
                     }
 
+                    // Row 2: Atmospheric Sound FX
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ScareButton("🔊 SCREAM", Modifier.weight(1f)) {
+                            triggerScare(Command.Sound("scream", sudden = true))
+                        }
+                        ScareButton("🫁 BREATH", Modifier.weight(1f)) {
+                            triggerScare(Command.Sound("breath"))
+                        }
+                    }
+
+                    // Row 3: Water Drop & Strong Tremor Vibrate
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ScareButton("💧 WATER DROP", Modifier.weight(1f)) {
+                            triggerScare(Command.Sound("water_drop"))
+                        }
+                        ScareButton("📳 VIBRATE", Modifier.weight(1f)) {
+                            triggerScare(Command.Vibrate(listOf(0L, 800L, 120L, 1200L, 150L, 1500L, 100L, 800L), 255))
+                        }
+                    }
+
+                    // Row 4: Torch Flicker & Creepy TTS
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("⚡ TORCH FLICKER", Modifier.weight(1f)) {
                             triggerScare(Command.Flashlight(2500L))
                         }
-                        ScareButton("👻 JUMP SCARE", Modifier.weight(1f)) {
-                            triggerScare(Command.Video("vid_scare_01"))
-                        }
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("🗣️ CREEPY TTS", Modifier.weight(1f)) {
                             triggerScare(Command.TTS("I see you in the dark...", pitch = 0.4f))
-                        }
-                        ScareButton("🚨 STROBE FLASH", Modifier.weight(1f)) {
-                            triggerScare(Command.ScreenFlash("STROBE"))
-                        }
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ScareButton("⚠️ FAKE UI ALERT", Modifier.weight(1f)) {
-                            triggerScare(Command.FakeUI("BATTERY_LOW"))
-                        }
-                        ScareButton("🌑 LIGHTS OUT", Modifier.weight(1f)) {
-                            triggerScare(Command.Dim(true))
                         }
                     }
                 }
@@ -324,8 +341,15 @@ private fun ScareButton(
         onClick = onClick,
         modifier = modifier.border(1.dp, Color(0xFF552222), RoundedCornerShape(8.dp)),
         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A1010)),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(8.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
     ) {
-        Text(label, color = Color(0xFFFF8A80), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = label,
+            color = Color(0xFFFF8A80),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
     }
 }

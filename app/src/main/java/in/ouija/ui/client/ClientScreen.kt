@@ -2,6 +2,15 @@ package ouija.app.ui.client
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.net.Uri
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
+import ouija.app.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,7 +39,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -68,7 +79,8 @@ fun ClientScreen(
     var showSecretMenu by remember { mutableStateOf(false) }
     var secretTapCount by remember { mutableIntStateOf(0) }
     var spellText by remember { mutableStateOf<String?>(null) }
-    var spellSpeed by remember { mutableStateOf(800L) }
+    var spellSpeed by remember { mutableStateOf(1800L) }
+    var spellTrigger by remember { mutableLongStateOf(0L) }
 
     // Screen shake animation when poltergeist effect is triggered
     val shakeOffsetX = remember { Animatable(0f) }
@@ -124,6 +136,7 @@ fun ClientScreen(
             if (cmd is Command.Spell) {
                 spellText = cmd.text
                 spellSpeed = cmd.speedMs
+                spellTrigger++
             }
             effectManager.executeCommand(cmd)
         }
@@ -147,6 +160,7 @@ fun ClientScreen(
         OuijaBoardCanvas(
             spellText = spellText,
             spellSpeedMs = spellSpeed,
+            spellTrigger = spellTrigger,
             isDimmed = screenState.isDimmed,
             onPositionChanged = { normX, normY, letter ->
                 realtimeManager.sendTelemetry(
@@ -193,21 +207,11 @@ fun ClientScreen(
         )
 
         // Jump Scare / Video Overlay
-        screenState.videoId?.let {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .clickable { effectManager.dismissVideo() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "👻 JUMP SCARE 👻",
-                    color = Color.Red,
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+        screenState.videoId?.let { vidId ->
+            JumpScareVideoOverlay(
+                videoId = vidId,
+                onDismiss = { effectManager.dismissVideo() }
+            )
         }
 
         // Fake UI Overlay (e.g. Battery low / Cracked screen / Unknown presence)
@@ -274,6 +278,101 @@ fun ClientScreen(
                 },
                 containerColor = Color(0xFF2A1C10)
             )
+        }
+    }
+}
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+private fun JumpScareVideoOverlay(
+    videoId: String,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val isJumpScare2 = remember(videoId) {
+        val normalized = videoId.lowercase().replace("-", "_").trim()
+        normalized in listOf("jump_scare_2", "scare_2", "2", "vid_scare_02")
+    }
+    val rawResId = if (isJumpScare2) R.raw.jump_scare_2 else R.raw.jump_scare_1
+
+    // State controlling the 5-second electronic failure blackout exclusively for Jump Scare 2
+    var isBlackoutPhase by remember(videoId) { mutableStateOf(isJumpScare2) }
+    var glitchAlpha by remember(videoId) { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(videoId) {
+        if (isJumpScare2) {
+            isBlackoutPhase = true
+            // Initial electronic power failure flicker in the first ~130ms
+            glitchAlpha = 0.35f
+            delay(40L)
+            glitchAlpha = 0.05f
+            delay(40L)
+            glitchAlpha = 0.5f
+            delay(50L)
+            glitchAlpha = 0f // Complete dead electronic black screen
+            delay(4870L) // Remaining time to make exactly 5.0 seconds
+            isBlackoutPhase = false
+        } else {
+            isBlackoutPhase = false
+        }
+    }
+
+    val exoPlayer = remember(context, rawResId, isBlackoutPhase) {
+        if (!isBlackoutPhase) {
+            ExoPlayer.Builder(context).build().apply {
+                val uri = Uri.parse("android.resource://${context.packageName}/$rawResId")
+                setMediaItem(MediaItem.fromUri(uri))
+                prepare()
+                playWhenReady = true
+                addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_ENDED) {
+                            onDismiss()
+                        }
+                    }
+                    override fun onPlayerError(error: PlaybackException) {
+                        onDismiss()
+                    }
+                })
+            }
+        } else {
+            null
+        }
+    }
+
+    DisposableEffect(exoPlayer) {
+        onDispose {
+            exoPlayer?.release()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable(enabled = !isBlackoutPhase) { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        if (!isBlackoutPhase && exoPlayer != null) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        player = exoPlayer
+                    }
+                }
+            )
+        } else {
+            // Electronic failure dead screen overlay (5 seconds)
+            if (glitchAlpha > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF202020).copy(alpha = glitchAlpha))
+                )
+            }
         }
     }
 }
