@@ -271,7 +271,7 @@ fun ServerScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Grid of Scare Triggers (4 balanced rows)
+                // Grid of Scare Triggers
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // Row 1: Jump Scare Videos
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -283,7 +283,17 @@ fun ServerScreen(
                         }
                     }
 
-                    // Row 2: Atmospheric Sound FX
+                    // Row 2: Visual Terror (Screen Glitch & Screen Break)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ScareButton("📺 SCREEN GLITCH", Modifier.weight(1f)) {
+                            triggerScare(Command.ScreenFlash("GLITCH"))
+                        }
+                        ScareButton("💥 SCREEN BREAK", Modifier.weight(1f)) {
+                            triggerScare(Command.FakeUI("SCREEN_CRACK"))
+                        }
+                    }
+
+                    // Row 3: Vocal / Entity SFX
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("🔊 SCREAM", Modifier.weight(1f)) {
                             triggerScare(Command.Sound("scream", sudden = true))
@@ -293,23 +303,33 @@ fun ServerScreen(
                         }
                     }
 
-                    // Row 3: Water Drop & Strong Tremor Vibrate
+                    // Row 4: Atmospheric Environmental SFX
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ScareButton("🚪 DOOR CREAK", Modifier.weight(1f)) {
+                            triggerScare(Command.Sound("door_creak"))
+                        }
                         ScareButton("💧 WATER DROP", Modifier.weight(1f)) {
                             triggerScare(Command.Sound("water_drop"))
                         }
-                        ScareButton("📳 VIBRATE", Modifier.weight(1f)) {
-                            triggerScare(Command.Vibrate(listOf(0L, 800L, 120L, 1200L, 150L, 1500L, 100L, 800L), 255))
+                    }
+
+                    // Row 5: Ghostly Whispers (TTS)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ScareButton("🗣️ CREEPY TTS", Modifier.weight(1f)) {
+                            triggerScare(Command.TTS("I see you in the dark...", pitch = 0.4f))
+                        }
+                        ScareButton("🗣️ TTS: VIJAY", Modifier.weight(1f)) {
+                            triggerScare(Command.TTS("Vijay", pitch = 0.4f))
                         }
                     }
 
-                    // Row 4: Torch Flicker & Creepy TTS
+                    // Row 6: Physical Disturbances (Torch & Tremor)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("⚡ TORCH FLICKER", Modifier.weight(1f)) {
                             triggerScare(Command.Flashlight(2500L))
                         }
-                        ScareButton("🗣️ CREEPY TTS", Modifier.weight(1f)) {
-                            triggerScare(Command.TTS("I see you in the dark...", pitch = 0.4f))
+                        ScareButton("📳 HEAVY VIBRATE", Modifier.weight(1f)) {
+                            triggerScare(Command.Vibrate(listOf(0L, 800L, 120L, 1200L, 150L, 1500L, 100L, 800L), 255))
                         }
                     }
                 }

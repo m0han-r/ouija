@@ -16,6 +16,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -72,6 +74,7 @@ fun OuijaBoardCanvas(
     isDimmed: Boolean = false,
     archConfig: BoardArchConfig = BoardArchConfig(),
     onPositionChanged: (Float, Float, String) -> Unit = { _, _, _ -> },
+    onMoonTapped: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -348,7 +351,56 @@ fun OuijaBoardCanvas(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isDimmed) Color(0xFF070403) else Color(0xFF0F0805))
+            .pointerInput(archConfig) {
+                var lastMoonTapTime = 0L
+                var moonTapCount = 0
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val w = size.width.toFloat()
+                    val h = size.height.toFloat()
+                    val moonCenter = Offset(w * archConfig.candleLeftNormX, h * archConfig.moonNormY)
+                    val sunCenter = Offset(w * archConfig.candleRightNormX, h * archConfig.sunNormY)
+
+                    val distMoon = hypot(down.position.x - moonCenter.x, down.position.y - moonCenter.y)
+                    val distSun = hypot(down.position.x - sunCenter.x, down.position.y - sunCenter.y)
+                    val isMoonArea = distMoon < 90.dp.toPx() ||
+                            distSun < 90.dp.toPx() ||
+                            (down.position.x < w * 0.22f && down.position.y < h * 0.38f)
+
+                    if (isMoonArea) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastMoonTapTime < 1800L) {
+                            moonTapCount++
+                        } else {
+                            moonTapCount = 1
+                        }
+                        lastMoonTapTime = now
+
+                        try {
+                            if (moonTapCount >= 3) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    vibrator?.vibrate(60L)
+                                }
+                            } else {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    vibrator?.vibrate(25L)
+                                }
+                            }
+                        } catch (_: Exception) {}
+
+                        if (moonTapCount >= 3) {
+                            moonTapCount = 0
+                            onMoonTapped?.invoke()
+                        }
+                    }
+                }
+            }
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
