@@ -266,6 +266,24 @@ fun ServerScreen(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Custom Phrase Button: KILL VIJAY
+                Button(
+                    onClick = { triggerScare(Command.Spell("KILL VIJAY"), "SPELL: KILL VIJAY") },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3E1A1A))
+                ) {
+                    Text(
+                        text = "🗡️ KILL VIJAY",
+                        color = Color(0xFFFF5252),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
 
@@ -334,13 +352,13 @@ fun ServerScreen(
                         }
                     }
 
-                    // Row 5: Ghostly Whispers (TTS)
+                    // Row 5: Ghostly Whispers (TTS) & Kill Vijay Audio
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("🗣️ CREEPY TTS", Modifier.weight(1f)) {
                             triggerScare(Command.TTS("I see you in the dark...", pitch = 0.4f), "CREEPY TTS")
                         }
-                        ScareButton("🗣️ TTS: VIJAY", Modifier.weight(1f)) {
-                            triggerScare(Command.TTS("Vijay", pitch = 0.4f), "TTS VIJAY")
+                        ScareButton("🗡️ KILL VIJAY", Modifier.weight(1f)) {
+                            triggerScare(Command.Sound("kill_vijay", sudden = true), "KILL VIJAY")
                         }
                     }
 

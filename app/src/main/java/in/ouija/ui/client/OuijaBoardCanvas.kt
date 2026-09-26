@@ -328,8 +328,11 @@ fun OuijaBoardCanvas(
                 onPositionChanged(cornerTarget.normX, cornerTarget.normY, cornerTarget.name)
             } else {
                 for (char in upper) {
+                    if (char == ' ') {
+                        delay(900L) // Suspenseful pause between words
+                        continue
+                    }
                     val target = targets.find { it.name == char.toString() }
-                        ?: if (char == ' ') targets.find { it.name == "GOODBYE" } else null
 
                     if (target != null) {
                         val targetX = target.normX * boardWidth

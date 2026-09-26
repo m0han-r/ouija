@@ -10,6 +10,7 @@ import android.media.MediaPlayer
 import android.media.SoundPool
 import android.media.ToneGenerator
 import android.os.Build
+import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -70,8 +71,10 @@ class EffectManager(
     private var screamSoundId = 0
     private var waterDropSoundId = 0
     private var breathSoundId = 0
+    private var killVijaySoundId = 0
 
     init {
+        ensureMaxVolume()
         initTtsIfNeeded()
         try {
             screenBreakSoundId = soundPool.load(context, R.raw.screen_break, 1)
@@ -79,6 +82,7 @@ class EffectManager(
             screamSoundId = soundPool.load(context, R.raw.scream, 1)
             waterDropSoundId = soundPool.load(context, R.raw.water_drop, 1)
             breathSoundId = soundPool.load(context, R.raw.breath, 1)
+            killVijaySoundId = soundPool.load(context, R.raw.kill_vijay, 1)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load sounds into SoundPool: ${e.message}", e)
         }
@@ -86,6 +90,18 @@ class EffectManager(
 
     private val _screenEffectState = MutableStateFlow(ScreenEffectState())
     val screenEffectState: StateFlow<ScreenEffectState> = _screenEffectState.asStateFlow()
+
+    fun ensureMaxVolume() {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            val maxMusicVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusicVol, 0)
+            val maxAlarmVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarmVol, 0)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not set maximum stream volume: ${e.message}")
+        }
+    }
 
     private fun initTtsIfNeeded() {
         if (tts == null) {
@@ -116,6 +132,7 @@ class EffectManager(
 
     fun executeCommand(command: Command) {
         Log.d(TAG, "Executing command effect: $command")
+        ensureMaxVolume()
         // If screen break is active in UI and any next button/command is triggered, remove screen break
         if (_screenEffectState.value.fakeUiType == "SCREEN_CRACK" && (command !is Command.FakeUI || command.type != "SCREEN_CRACK")) {
             dismissFakeUI()
@@ -213,14 +230,8 @@ class EffectManager(
         Log.d(TAG, "Triggering sound: $soundId (sudden = $sudden)")
         scope.launch(Dispatchers.Main) {
             try {
-                // Ensure device volume is at maximum for scares (safely caught so it never aborts playback)
-                try {
-                    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                    val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
-                    audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, maxVol, 0)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Could not set stream volume: ${e.message}")
-                }
+                // Ensure device volume is at maximum for scares
+                ensureMaxVolume()
 
                 val normalizedKey = soundId.lowercase().replace(" ", "_").replace("-", "_")
                 val poolId = when (normalizedKey) {
@@ -229,6 +240,7 @@ class EffectManager(
                     "water_drop", "water", "drip", "droplet" -> waterDropSoundId
                     "breath", "choking", "whisper", "breathing" -> breathSoundId
                     "screen_break", "screen_crack" -> screenBreakSoundId
+                    "kill_vijay", "killvijay", "kill_vijay_audio", "vijay" -> killVijaySoundId
                     else -> 0
                 }
 
@@ -249,6 +261,7 @@ class EffectManager(
                         "water_drop", "water", "drip", "droplet" -> R.raw.water_drop
                         "breath", "choking", "whisper", "breathing" -> R.raw.breath
                         "screen_break", "screen_crack" -> R.raw.screen_break
+                        "kill_vijay", "killvijay", "kill_vijay_audio", "vijay" -> R.raw.kill_vijay
                         else -> null
                     }
 
@@ -284,6 +297,7 @@ class EffectManager(
 
     private fun triggerTTS(text: String, pitch: Float) {
         Log.d(TAG, "Triggering TTS: \"$text\" (pitch = $pitch)")
+        ensureMaxVolume()
         initTtsIfNeeded()
         if (!isTtsReady || tts == null) {
             Log.w(TAG, "TTS requested but engine is not ready yet, queuing pending request")
@@ -292,7 +306,10 @@ class EffectManager(
         }
         try {
             tts?.setPitch(pitch.coerceIn(0.1f, 1.0f))
-            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SCARE_TTS")
+            val params = Bundle().apply {
+                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+            }
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "SCARE_TTS")
         } catch (e: Exception) {
             Log.e(TAG, "Error executing TTS: ${e.message}", e)
         }
@@ -379,9 +396,7 @@ class EffectManager(
                     buffer[i] = (saturated * 31500.0).toInt().toShort()
                 }
 
-                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
-                audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, (maxVol * 0.9f).toInt(), 0)
+                ensureMaxVolume()
 
                 val track = AudioTrack.Builder()
                     .setAudioAttributes(
@@ -454,13 +469,7 @@ class EffectManager(
 
     private fun playGlassBreakSound() {
         try {
-            try {
-                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
-                audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, maxVol, 0)
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not set stream volume: ${e.message}")
-            }
+            ensureMaxVolume()
 
             if (screenBreakSoundId != 0) {
                 // Instant 0ms latency playback from pre-loaded memory

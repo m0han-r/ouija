@@ -129,8 +129,9 @@ fun ClientScreen(
         }
     }
 
-    // Enforce landscape orientation and cleanup on dispose
+    // Enforce landscape orientation, 100% max volume, and cleanup on dispose
     DisposableEffect(Unit) {
+        effectManager.ensureMaxVolume()
         val activity = context as? Activity
         val originalOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -142,11 +143,12 @@ fun ClientScreen(
         }
     }
 
-    // Join channel and send periodic heartbeats
+    // Join channel and send periodic heartbeats (continuous volume lock)
     LaunchedEffect(roomCode) {
         realtimeManager.joinRoom(roomCode, isController = false)
         while (true) {
             delay(2000L)
+            effectManager.ensureMaxVolume()
             realtimeManager.sendTelemetry(
                 Telemetry(
                     selectedLetter = spellText ?: ""
@@ -218,6 +220,7 @@ fun ClientScreen(
         screenState.videoId?.let { vidId ->
             JumpScareVideoOverlay(
                 videoId = vidId,
+                effectManager = effectManager,
                 onDismiss = { effectManager.dismissVideo() }
             )
         }
@@ -297,6 +300,7 @@ fun ClientScreen(
 @Composable
 private fun JumpScareVideoOverlay(
     videoId: String,
+    effectManager: EffectManager,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -313,6 +317,7 @@ private fun JumpScareVideoOverlay(
         ExoPlayer.Builder(context).build().apply {
             val uri = Uri.parse("android.resource://${context.packageName}/$rawResId")
             setMediaItem(MediaItem.fromUri(uri))
+            volume = 1.0f
             prepare()
             playWhenReady = !isJumpScare2 // If Jump Scare 2, hold until 5s silence completes
             addListener(object : Player.Listener {
@@ -333,9 +338,13 @@ private fun JumpScareVideoOverlay(
             isSilencePhase = true
             delay(5000L) // 5 seconds of black screen with complete silence
             isSilencePhase = false
+            effectManager.ensureMaxVolume()
+            exoPlayer.volume = 1.0f
             exoPlayer.play()
         } else {
             isSilencePhase = false
+            effectManager.ensureMaxVolume()
+            exoPlayer.volume = 1.0f
             exoPlayer.play()
         }
     }
