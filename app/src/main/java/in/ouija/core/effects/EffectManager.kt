@@ -7,6 +7,7 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import android.media.MediaPlayer
+import android.media.SoundPool
 import android.media.ToneGenerator
 import android.os.Build
 import android.os.VibrationEffect
@@ -55,8 +56,32 @@ class EffectManager(
     private var isTtsReady = false
     private var pendingTts: Pair<String, Float>? = null
 
+    private val soundPool = SoundPool.Builder()
+        .setMaxStreams(8)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+        )
+        .build()
+    private var screenBreakSoundId = 0
+    private var doorCreakSoundId = 0
+    private var screamSoundId = 0
+    private var waterDropSoundId = 0
+    private var breathSoundId = 0
+
     init {
         initTtsIfNeeded()
+        try {
+            screenBreakSoundId = soundPool.load(context, R.raw.screen_break, 1)
+            doorCreakSoundId = soundPool.load(context, R.raw.door_creak, 1)
+            screamSoundId = soundPool.load(context, R.raw.scream, 1)
+            waterDropSoundId = soundPool.load(context, R.raw.water_drop, 1)
+            breathSoundId = soundPool.load(context, R.raw.breath, 1)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load sounds into SoundPool: ${e.message}", e)
+        }
     }
 
     private val _screenEffectState = MutableStateFlow(ScreenEffectState())
@@ -91,6 +116,10 @@ class EffectManager(
 
     fun executeCommand(command: Command) {
         Log.d(TAG, "Executing command effect: $command")
+        // If screen break is active in UI and any next button/command is triggered, remove screen break
+        if (_screenEffectState.value.fakeUiType == "SCREEN_CRACK" && (command !is Command.FakeUI || command.type != "SCREEN_CRACK")) {
+            dismissFakeUI()
+        }
         when (command) {
             is Command.Vibrate -> triggerVibration(command.pattern, command.amplitude)
             is Command.Flashlight -> triggerFlashlight(command.durationMs)
@@ -184,42 +213,66 @@ class EffectManager(
         Log.d(TAG, "Triggering sound: $soundId (sudden = $sudden)")
         scope.launch(Dispatchers.Main) {
             try {
-                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
-                val targetVol = if (sudden || soundId.equals("scream", ignoreCase = true)) {
-                    (maxVol * 0.95f).toInt().coerceAtLeast(1)
-                } else {
-                    (maxVol * 0.75f).toInt().coerceAtLeast(1)
-                }
-                audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
-
-                val resId = when (soundId.lowercase().replace(" ", "_").replace("-", "_")) {
-                    "scream", "loud" -> R.raw.scream
-                    "water_drop", "water", "drip", "droplet" -> R.raw.water_drop
-                    "breath", "choking", "whisper", "breathing" -> R.raw.breath
-                    "door_creak", "door", "creak", "creaky_door" -> R.raw.door_creak
-                    else -> null
+                // Ensure device volume is at maximum for scares (safely caught so it never aborts playback)
+                try {
+                    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+                    audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, maxVol, 0)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not set stream volume: ${e.message}")
                 }
 
-                if (resId != null) {
-                    try {
-                        activeMediaPlayer?.stop()
-                        activeMediaPlayer?.release()
-                    } catch (_: Exception) {}
+                val normalizedKey = soundId.lowercase().replace(" ", "_").replace("-", "_")
+                val poolId = when (normalizedKey) {
+                    "door_creak", "door", "creak", "creaky_door" -> doorCreakSoundId
+                    "scream", "loud" -> screamSoundId
+                    "water_drop", "water", "drip", "droplet" -> waterDropSoundId
+                    "breath", "choking", "whisper", "breathing" -> breathSoundId
+                    "screen_break", "screen_crack" -> screenBreakSoundId
+                    else -> 0
+                }
 
-                    val mp = MediaPlayer.create(context, resId)
-                    activeMediaPlayer = mp
-                    mp?.setOnCompletionListener {
-                        it.release()
-                        if (activeMediaPlayer == it) activeMediaPlayer = null
+                var played = false
+                if (poolId != 0) {
+                    val streamId = soundPool.play(poolId, 1.0f, 1.0f, 1, 0, 1.0f)
+                    if (streamId != 0) {
+                        played = true
+                        Log.d(TAG, "Played $soundId via SoundPool (streamId = $streamId)")
                     }
-                    mp?.start()
-                } else {
-                    withContext(Dispatchers.IO) {
-                        val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
-                        toneGen.startTone(ToneGenerator.TONE_PROP_PROMPT, 600)
-                        delay(700)
-                        toneGen.release()
+                }
+
+                if (!played) {
+                    // Fallback to MediaPlayer with USAGE_ALARM to ensure it plays out loud even in silent mode
+                    val resId = when (normalizedKey) {
+                        "door_creak", "door", "creak", "creaky_door" -> R.raw.door_creak
+                        "scream", "loud" -> R.raw.scream
+                        "water_drop", "water", "drip", "droplet" -> R.raw.water_drop
+                        "breath", "choking", "whisper", "breathing" -> R.raw.breath
+                        "screen_break", "screen_crack" -> R.raw.screen_break
+                        else -> null
+                    }
+
+                    if (resId != null) {
+                        try {
+                            activeMediaPlayer?.stop()
+                            activeMediaPlayer?.release()
+                        } catch (_: Exception) {}
+
+                        val mp = MediaPlayer.create(context, resId)
+                        activeMediaPlayer = mp
+                        mp?.setVolume(1.0f, 1.0f)
+                        mp?.setOnCompletionListener {
+                            it.release()
+                            if (activeMediaPlayer == it) activeMediaPlayer = null
+                        }
+                        mp?.start()
+                    } else {
+                        withContext(Dispatchers.IO) {
+                            val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                            toneGen.startTone(ToneGenerator.TONE_PROP_PROMPT, 600)
+                            delay(700)
+                            toneGen.release()
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -227,6 +280,7 @@ class EffectManager(
             }
         }
     }
+
 
     private fun triggerTTS(text: String, pitch: Float) {
         Log.d(TAG, "Triggering TTS: \"$text\" (pitch = $pitch)")
@@ -379,6 +433,7 @@ class EffectManager(
         _screenEffectState.value = _screenEffectState.value.copy(videoId = videoId)
     }
 
+
     fun dismissVideo() {
         Log.d(TAG, "Dismissing jump scare video overlay")
         _screenEffectState.value = _screenEffectState.value.copy(videoId = null)
@@ -389,97 +444,41 @@ class EffectManager(
         _screenEffectState.value = _screenEffectState.value.copy(fakeUiType = type)
 
         if (type == "SCREEN_CRACK") {
-            // Play explosive glass shatter sound
             playGlassBreakSound()
-            // Violent mechanical shockwave vibration
             triggerVibration(
-                listOf(0L, 70L, 30L, 200L, 40L, 100L),
+                listOf(0L, 110L),
                 255
             )
-            // Instant violent jolt
-            triggerShake(350L)
         }
     }
 
     private fun playGlassBreakSound() {
-        scope.launch(Dispatchers.IO) {
+        try {
             try {
-                val sampleRate = 44100
-                val durationMs = 1200L
-                val totalSamples = ((sampleRate * durationMs) / 1000).toInt()
-                val buffer = ShortArray(totalSamples)
-                val random = Random()
-
-                // Acoustic Glass Shatter Synthesis:
-                // 1. Violent Initial Impact Pop & Shockwave (0 - 35ms)
-                // 2. High-Frequency Glass Resonant Modes (2850Hz, 3620Hz, 4480Hz, 6100Hz)
-                // 3. Dense Granular Debris & Fragment Scatter (30ms - 1000ms)
-                var phaseR1 = 0.0
-                var phaseR2 = 0.0
-                var phaseR3 = 0.0
-                var phaseR4 = 0.0
-
-                for (i in 0 until totalSamples) {
-                    val t = i.toDouble() / sampleRate
-
-                    // 1. Shockwave impact pop (steep bass transient + clipped burst)
-                    val impactPop = if (t < 0.04) {
-                        val env = (1.0 - t / 0.04)
-                        Math.sin(2.0 * Math.PI * 85.0 * t) * env * 1.5 + (random.nextDouble() * 2.0 - 1.0) * env * 1.2
-                    } else 0.0
-
-                    // 2. Ringing glass resonance modes
-                    phaseR1 += 2.0 * Math.PI * 2850.0 / sampleRate
-                    phaseR2 += 2.0 * Math.PI * 3620.0 / sampleRate
-                    phaseR3 += 2.0 * Math.PI * 4480.0 / sampleRate
-                    phaseR4 += 2.0 * Math.PI * 6100.0 / sampleRate
-
-                    val ringEnv1 = Math.exp(-t * 7.5)
-                    val ringEnv2 = Math.exp(-t * 11.0)
-                    val ringEnv3 = Math.exp(-t * 16.0)
-
-                    val glassRing = (Math.sin(phaseR1) * 0.45 + Math.sin(phaseR2) * 0.35) * ringEnv1 +
-                            Math.sin(phaseR3) * 0.25 * ringEnv2 +
-                            Math.sin(phaseR4) * 0.20 * ringEnv3
-
-                    // 3. Granular crackles & shards scattering
-                    val debrisEnv = Math.exp(-t * 4.0)
-                    val debrisChance = (0.25 * debrisEnv).coerceIn(0.001, 0.4)
-                    val debris = if (random.nextDouble() < debrisChance) {
-                        (random.nextDouble() * 2.0 - 1.0) * 0.8 * debrisEnv
-                    } else 0.0
-
-                    val mix = (impactPop * 0.7 + glassRing * 0.65 + debris * 0.45).coerceIn(-1.0, 1.0)
-                    buffer[i] = (mix * 31500.0).toInt().toShort()
-                }
-
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
-                audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, (maxVol * 0.95f).toInt(), 0)
-
-                val track = AudioTrack.Builder()
-                    .setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build()
-                    )
-                    .setAudioFormat(
-                        AudioFormat.Builder()
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setSampleRate(sampleRate)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build()
-                    )
-                    .setBufferSizeInBytes(buffer.size * 2)
-                    .setTransferMode(AudioTrack.MODE_STATIC)
-                    .build()
-
-                track.write(buffer, 0, buffer.size)
-                track.play()
+                audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, maxVol, 0)
             } catch (e: Exception) {
-                Log.e(TAG, "Error playing glass break sound: ${e.message}", e)
+                Log.w(TAG, "Could not set stream volume: ${e.message}")
             }
+
+            if (screenBreakSoundId != 0) {
+                // Instant 0ms latency playback from pre-loaded memory
+                soundPool.play(screenBreakSoundId, 1.0f, 1.0f, 1, 0, 1.0f)
+            } else {
+                activeMediaPlayer?.stop()
+                activeMediaPlayer?.release()
+                val mp = MediaPlayer.create(context, R.raw.screen_break)
+                activeMediaPlayer = mp
+                mp?.setVolume(1.0f, 1.0f)
+                mp?.setOnCompletionListener {
+                    it.release()
+                    if (activeMediaPlayer == it) activeMediaPlayer = null
+                }
+                mp?.start()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error playing screen break sound: ${e.message}", e)
         }
     }
 
@@ -498,6 +497,10 @@ class EffectManager(
         torchJob?.cancel()
         shakeJob?.cancel()
         flashJob?.cancel()
+
+        try {
+            soundPool.autoPause()
+        } catch (_: Exception) {}
 
         try {
             activeMediaPlayer?.stop()

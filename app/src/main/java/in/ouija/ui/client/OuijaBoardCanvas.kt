@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -80,6 +81,8 @@ fun OuijaBoardCanvas(
     val textMeasurer = rememberTextMeasurer()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val currentOnMoonTapped by rememberUpdatedState(onMoonTapped)
+    val currentArchConfig by rememberUpdatedState(archConfig)
 
     val vibrator = remember(context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -351,15 +354,26 @@ fun OuijaBoardCanvas(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(archConfig) {
+            .pointerInput(Unit) {
+                var firstMoonTapTime = 0L
                 var lastMoonTapTime = 0L
                 var moonTapCount = 0
+                val windowMs = 3000L // Must tap 3 times within 3 seconds
+
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    val now = System.currentTimeMillis()
+
+                    // Debounce rapid hardware jitter / multi-touch (< 80ms)
+                    if (now - lastMoonTapTime < 80L) {
+                        return@awaitEachGesture
+                    }
+
                     val w = size.width.toFloat()
                     val h = size.height.toFloat()
-                    val moonCenter = Offset(w * archConfig.candleLeftNormX, h * archConfig.moonNormY)
-                    val sunCenter = Offset(w * archConfig.candleRightNormX, h * archConfig.sunNormY)
+                    val config = currentArchConfig
+                    val moonCenter = Offset(w * config.candleLeftNormX, h * config.moonNormY)
+                    val sunCenter = Offset(w * config.candleRightNormX, h * config.sunNormY)
 
                     val distMoon = hypot(down.position.x - moonCenter.x, down.position.y - moonCenter.y)
                     val distSun = hypot(down.position.x - sunCenter.x, down.position.y - sunCenter.y)
@@ -368,13 +382,15 @@ fun OuijaBoardCanvas(
                             (down.position.x < w * 0.22f && down.position.y < h * 0.38f)
 
                     if (isMoonArea) {
-                        val now = System.currentTimeMillis()
-                        if (now - lastMoonTapTime < 1800L) {
-                            moonTapCount++
-                        } else {
-                            moonTapCount = 1
-                        }
                         lastMoonTapTime = now
+
+                        // Reset or increment tap count based on the 3-second window from 1st tap
+                        if (moonTapCount == 0 || (now - firstMoonTapTime) > windowMs) {
+                            firstMoonTapTime = now
+                            moonTapCount = 1
+                        } else {
+                            moonTapCount++
+                        }
 
                         try {
                             if (moonTapCount >= 3) {
@@ -396,7 +412,8 @@ fun OuijaBoardCanvas(
 
                         if (moonTapCount >= 3) {
                             moonTapCount = 0
-                            onMoonTapped?.invoke()
+                            firstMoonTapTime = 0L
+                            currentOnMoonTapped?.invoke()
                         }
                     }
                 }

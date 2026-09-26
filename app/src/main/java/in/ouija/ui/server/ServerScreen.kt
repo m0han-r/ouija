@@ -38,7 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,7 +64,16 @@ fun ServerScreen(
     val isPeerConnected by realtimeManager.isPeerConnected.collectAsState()
     val telemetry by realtimeManager.incomingTelemetry.collectAsState()
 
-    fun triggerScare(command: Command) {
+    val haptic = LocalHapticFeedback.current
+    var lastTriggeredLabel by remember { mutableStateOf<String?>(null) }
+
+    fun triggerScare(command: Command, label: String? = null) {
+        try {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        } catch (_: Exception) {}
+        if (label != null) {
+            lastTriggeredLabel = label
+        }
         realtimeManager.sendCommand(command)
     }
 
@@ -221,7 +232,7 @@ fun ServerScreen(
                     IconButton(
                         onClick = {
                             if (answerText.isNotBlank()) {
-                                triggerScare(Command.Spell(answerText))
+                                triggerScare(Command.Spell(answerText), "SPELL: $answerText")
                             }
                         },
                         modifier = Modifier.background(Color(0xFF3E2723), RoundedCornerShape(8.dp))
@@ -239,7 +250,7 @@ fun ServerScreen(
                 ) {
                     listOf("YES", "NO", "HELLO", "GOODBYE").forEach { quick ->
                         Button(
-                            onClick = { triggerScare(Command.Spell(quick)) },
+                            onClick = { triggerScare(Command.Spell(quick), "SPELL: $quick") },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                             shape = RoundedCornerShape(8.dp),
@@ -268,6 +279,16 @@ fun ServerScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("SCARE CONTROL PANEL", color = Color(0xFFF44336), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                lastTriggeredLabel?.let {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "TRIGGERED: $it",
+                        color = Color(0xFF81C784),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -276,63 +297,65 @@ fun ServerScreen(
                     // Row 1: Jump Scare Videos
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("👻 JUMP SCARE 1", Modifier.weight(1f)) {
-                            triggerScare(Command.Video("jump_scare_1"))
+                            triggerScare(Command.Video("jump_scare_1"), "JUMP SCARE 1")
                         }
                         ScareButton("👻 JUMP SCARE 2", Modifier.weight(1f)) {
-                            triggerScare(Command.Video("jump_scare_2"))
+                            triggerScare(Command.Video("jump_scare_2"), "JUMP SCARE 2")
                         }
                     }
 
                     // Row 2: Visual Terror (Screen Glitch & Screen Break)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("📺 SCREEN GLITCH", Modifier.weight(1f)) {
-                            triggerScare(Command.ScreenFlash("GLITCH"))
+                            triggerScare(Command.ScreenFlash("GLITCH"), "SCREEN GLITCH")
                         }
                         ScareButton("💥 SCREEN BREAK", Modifier.weight(1f)) {
-                            triggerScare(Command.FakeUI("SCREEN_CRACK"))
+                            triggerScare(Command.FakeUI("SCREEN_CRACK"), "SCREEN BREAK")
                         }
                     }
 
                     // Row 3: Vocal / Entity SFX
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("🔊 SCREAM", Modifier.weight(1f)) {
-                            triggerScare(Command.Sound("scream", sudden = true))
+                            triggerScare(Command.Sound("scream", sudden = true), "SCREAM")
                         }
                         ScareButton("🫁 BREATH", Modifier.weight(1f)) {
-                            triggerScare(Command.Sound("breath"))
+                            triggerScare(Command.Sound("breath", sudden = true), "BREATH")
                         }
                     }
 
                     // Row 4: Atmospheric Environmental SFX
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("🚪 DOOR CREAK", Modifier.weight(1f)) {
-                            triggerScare(Command.Sound("door_creak"))
+                            triggerScare(Command.Sound("door_creak", sudden = true), "DOOR CREAK")
                         }
                         ScareButton("💧 WATER DROP", Modifier.weight(1f)) {
-                            triggerScare(Command.Sound("water_drop"))
+                            triggerScare(Command.Sound("water_drop", sudden = true), "WATER DROP")
                         }
                     }
 
                     // Row 5: Ghostly Whispers (TTS)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("🗣️ CREEPY TTS", Modifier.weight(1f)) {
-                            triggerScare(Command.TTS("I see you in the dark...", pitch = 0.4f))
+                            triggerScare(Command.TTS("I see you in the dark...", pitch = 0.4f), "CREEPY TTS")
                         }
                         ScareButton("🗣️ TTS: VIJAY", Modifier.weight(1f)) {
-                            triggerScare(Command.TTS("Vijay", pitch = 0.4f))
+                            triggerScare(Command.TTS("Vijay", pitch = 0.4f), "TTS VIJAY")
                         }
                     }
 
                     // Row 6: Physical Disturbances (Torch & Tremor)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ScareButton("⚡ TORCH FLICKER", Modifier.weight(1f)) {
-                            triggerScare(Command.Flashlight(2500L))
+                            triggerScare(Command.Flashlight(2500L), "TORCH FLICKER")
                         }
                         ScareButton("📳 HEAVY VIBRATE", Modifier.weight(1f)) {
-                            triggerScare(Command.Vibrate(listOf(0L, 800L, 120L, 1200L, 150L, 1500L, 100L, 800L), 255))
+                            triggerScare(Command.Vibrate(listOf(0L, 800L, 120L, 1200L, 150L, 1500L, 100L, 800L), 255), "HEAVY VIBRATE")
                         }
                     }
                 }
+
+
 
                 Spacer(modifier = Modifier.height(16.dp))
 

@@ -61,10 +61,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import androidx.compose.animation.core.Animatable
@@ -298,54 +306,43 @@ private fun JumpScareVideoOverlay(
     }
     val rawResId = if (isJumpScare2) R.raw.jump_scare_2 else R.raw.jump_scare_1
 
-    // State controlling the 5-second electronic failure blackout exclusively for Jump Scare 2
-    var isBlackoutPhase by remember(videoId) { mutableStateOf(isJumpScare2) }
-    var glitchAlpha by remember(videoId) { mutableFloatStateOf(0f) }
+    // State controlling the 5-second suspense black screen with silence for Jump Scare 2
+    var isSilencePhase by remember(videoId) { mutableStateOf(isJumpScare2) }
 
-    LaunchedEffect(videoId) {
-        if (isJumpScare2) {
-            isBlackoutPhase = true
-            // Initial electronic power failure flicker in the first ~130ms
-            glitchAlpha = 0.35f
-            delay(40L)
-            glitchAlpha = 0.05f
-            delay(40L)
-            glitchAlpha = 0.5f
-            delay(50L)
-            glitchAlpha = 0f // Complete dead electronic black screen
-            delay(4870L) // Remaining time to make exactly 5.0 seconds
-            isBlackoutPhase = false
-        } else {
-            isBlackoutPhase = false
+    val exoPlayer = remember(context, rawResId) {
+        ExoPlayer.Builder(context).build().apply {
+            val uri = Uri.parse("android.resource://${context.packageName}/$rawResId")
+            setMediaItem(MediaItem.fromUri(uri))
+            prepare()
+            playWhenReady = !isJumpScare2 // If Jump Scare 2, hold until 5s silence completes
+            addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_ENDED) {
+                        onDismiss()
+                    }
+                }
+                override fun onPlayerError(error: PlaybackException) {
+                    onDismiss()
+                }
+            })
         }
     }
 
-    val exoPlayer = remember(context, rawResId, isBlackoutPhase) {
-        if (!isBlackoutPhase) {
-            ExoPlayer.Builder(context).build().apply {
-                val uri = Uri.parse("android.resource://${context.packageName}/$rawResId")
-                setMediaItem(MediaItem.fromUri(uri))
-                prepare()
-                playWhenReady = true
-                addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_ENDED) {
-                            onDismiss()
-                        }
-                    }
-                    override fun onPlayerError(error: PlaybackException) {
-                        onDismiss()
-                    }
-                })
-            }
+    LaunchedEffect(videoId) {
+        if (isJumpScare2) {
+            isSilencePhase = true
+            delay(5000L) // 5 seconds of black screen with complete silence
+            isSilencePhase = false
+            exoPlayer.play()
         } else {
-            null
+            isSilencePhase = false
+            exoPlayer.play()
         }
     }
 
     DisposableEffect(exoPlayer) {
         onDispose {
-            exoPlayer?.release()
+            exoPlayer.release()
         }
     }
 
@@ -353,10 +350,11 @@ private fun JumpScareVideoOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable(enabled = !isBlackoutPhase) { onDismiss() },
+            .clickable(enabled = !isSilencePhase) { onDismiss() },
         contentAlignment = Alignment.Center
     ) {
-        if (!isBlackoutPhase && exoPlayer != null) {
+        // Video Player: Plays when silence phase completes (or immediately for Jump Scare 1)
+        if (!isSilencePhase) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
@@ -367,18 +365,10 @@ private fun JumpScareVideoOverlay(
                     }
                 }
             )
-        } else {
-            // Electronic failure dead screen overlay (5 seconds)
-            if (glitchAlpha > 0f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFF202020).copy(alpha = glitchAlpha))
-                )
-            }
         }
     }
 }
+
 
 @Composable
 private fun GlitchScreenEffect(
@@ -537,158 +527,57 @@ private fun GlitchScreenEffect(
 
 @Composable
 private fun ScreenBreakOverlay(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    showBlackBackground: Boolean = true
 ) {
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    // Load photorealistic broken tempered glass texture (Gorilla Glass fracture)
+    val glassBitmap = remember(isLandscape) {
+        val resId = if (isLandscape) {
+            R.drawable.cracked_glass_landscape
+        } else {
+            R.drawable.cracked_glass_portrait
+        }
+        val options = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        BitmapFactory.decodeResource(context.resources, resId, options)?.asImageBitmap()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clickable { onDismiss() }
+            .then(
+                if (showBlackBackground) Modifier.background(Color.Black) else Modifier
+            )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onDismiss() }
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
+        // Photorealistic Shattered Glass Render
+        glassBitmap?.let { bitmap ->
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val dstSize = IntSize(size.width.toInt(), size.height.toInt())
 
-            // Impact center (slightly off-center for natural realism)
-            val cx = w * 0.44f
-            val cy = h * 0.52f
+                // Pass 1: Subtle glass refraction chromatic aberration (cyan/cool tint shifted 1px)
+                drawImage(
+                    image = bitmap,
+                    dstOffset = IntOffset(-1, -1),
+                    dstSize = dstSize,
+                    colorFilter = ColorFilter.tint(Color(0x3380DEEA), BlendMode.Modulate),
+                    blendMode = BlendMode.Screen
+                )
 
-            // 1. Amoled Liquid Bleed (Dark ink pool radiating from fracture core)
-            drawCircle(
-                color = Color(0xF208030B),
-                radius = 70.dp.toPx(),
-                center = Offset(cx, cy)
-            )
-            drawCircle(
-                color = Color(0xD0150522),
-                radius = 110.dp.toPx(),
-                center = Offset(cx + 8f, cy - 6f)
-            )
-
-            // 2. Dead Pixel / OLED Display Malfunction Lines
-            // Bright vertical green laser line
-            drawLine(
-                color = Color(0xD900FF66),
-                start = Offset(cx, 0f),
-                end = Offset(cx, h),
-                strokeWidth = 1.5.dp.toPx()
-            )
-            // Bright horizontal magenta glitch line
-            drawLine(
-                color = Color(0xD9FF007F),
-                start = Offset(0f, cy),
-                end = Offset(w, cy),
-                strokeWidth = 1.5.dp.toPx()
-            )
-
-            // 3. Dense Impact Shatter Core (Crushed white powdered glass)
-            drawCircle(
-                color = Color(0xEEFFFFFF),
-                radius = 12.dp.toPx(),
-                center = Offset(cx, cy)
-            )
-            drawCircle(
-                color = Color(0x99FFFFFF),
-                radius = 28.dp.toPx(),
-                center = Offset(cx, cy)
-            )
-
-            // 4. Primary Radial Fractures (16 jagged spiderweb spokes reaching screen edges)
-            val spokeAngles = listOf(
-                12.0, 35.0, 58.0, 82.0, 105.0, 130.0, 155.0, 178.0,
-                202.0, 225.0, 248.0, 272.0, 295.0, 318.0, 338.0, 355.0
-            )
-
-            val spokeNodes = mutableListOf<List<Offset>>()
-
-            for (angleDeg in spokeAngles) {
-                val rad = Math.toRadians(angleDeg)
-                val cosA = Math.cos(rad).toFloat()
-                val sinA = Math.sin(rad).toFloat()
-                val maxReach = Math.max(w, h) * 0.85f
-
-                val nodes = mutableListOf<Offset>()
-                nodes.add(Offset(cx, cy))
-
-                val steps = 6
-                var currentX = cx
-                var currentY = cy
-
-                for (s in 1..steps) {
-                    val stepDist = (maxReach / steps) * s
-                    val jitterAngle = rad + Math.PI / 2.0
-                    val jitter = ((s * 47) % 31 - 15).dp.toPx() * (s / 3f)
-
-                    val targetX = cx + (stepDist * cosA) + (Math.cos(jitterAngle).toFloat() * jitter)
-                    val targetY = cy + (stepDist * sinA) + (Math.sin(jitterAngle).toFloat() * jitter)
-
-                    // Draw shadow underneath for depth
-                    drawLine(
-                        color = Color(0xCC000000),
-                        start = Offset(currentX, currentY) + Offset(1.5f, 2f),
-                        end = Offset(targetX, targetY) + Offset(1.5f, 2f),
-                        strokeWidth = 3.5.dp.toPx()
-                    )
-
-                    // Chromatic aberration fringe (glass refraction)
-                    drawLine(
-                        color = if (s % 2 == 0) Color(0x6600E5FF) else Color(0x66FF1744),
-                        start = Offset(currentX, currentY) + Offset(-1f, -1f),
-                        end = Offset(targetX, targetY) + Offset(-1f, -1f),
-                        strokeWidth = 2.dp.toPx()
-                    )
-
-                    // Bright specular white glass fracture highlight
-                    drawLine(
-                        color = Color(0xF5FFFFFF),
-                        start = Offset(currentX, currentY),
-                        end = Offset(targetX, targetY),
-                        strokeWidth = if (s <= 2) 2.2.dp.toPx() else 1.4.dp.toPx()
-                    )
-
-                    currentX = targetX
-                    currentY = targetY
-                    nodes.add(Offset(targetX, targetY))
-                }
-                spokeNodes.add(nodes)
-            }
-
-            // 5. Concentric Spiderweb Cross-Cracks connecting spokes
-            for (level in 1..4) {
-                for (s in 0 until spokeNodes.size) {
-                    val nextSpoke = (s + 1) % spokeNodes.size
-                    val p1 = spokeNodes[s].getOrNull(level) ?: continue
-                    val p2 = spokeNodes[nextSpoke].getOrNull(level) ?: continue
-
-                    // Shadow
-                    drawLine(
-                        color = Color(0xAA000000),
-                        start = p1 + Offset(1f, 1.5f),
-                        end = p2 + Offset(1f, 1.5f),
-                        strokeWidth = 2.dp.toPx()
-                    )
-                    // Crack highlight
-                    drawLine(
-                        color = Color(0xD8FFFFFF),
-                        start = p1,
-                        end = p2,
-                        strokeWidth = 1.2.dp.toPx()
-                    )
-                }
-            }
-
-            // 6. Scattered Micro Glass Splinters around impact point
-            for (m in 0 until 24) {
-                val dist = (15 + (m * 29) % 95).dp.toPx()
-                val ang = Math.toRadians((m * 53.0) % 360.0)
-                val mx = cx + (Math.cos(ang).toFloat() * dist)
-                val my = cy + (Math.sin(ang).toFloat() * dist)
-                val sLen = (6 + (m * 17) % 18).dp.toPx()
-
-                drawLine(
-                    color = Color.White.copy(alpha = 0.9f),
-                    start = Offset(mx, my),
-                    end = Offset(mx + sLen * 0.7f, my + sLen * 0.5f),
-                    strokeWidth = 1.5.dp.toPx()
+                // Pass 2: Base specular glass crack reflection (crystalline white fractures & pulverized impact core)
+                drawImage(
+                    image = bitmap,
+                    dstOffset = IntOffset(0, 0),
+                    dstSize = dstSize,
+                    blendMode = BlendMode.Screen
                 )
             }
         }
