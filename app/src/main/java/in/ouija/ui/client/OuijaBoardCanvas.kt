@@ -128,6 +128,7 @@ fun OuijaBoardCanvas(
     val apertureOffsetY = remember(density) { with(density) { 4.dp.toPx() } }
 
     var lastHoveredTarget by remember { mutableStateOf<String?>(null) }
+    var isSpellingActive by remember { mutableStateOf(false) }
 
     // Candle and Atmospheric Infinite Animations
     val infiniteTransition = rememberInfiniteTransition(label = "OuijaAtmosphere")
@@ -307,52 +308,61 @@ fun OuijaBoardCanvas(
     // Auto-spelling animation handler with eerie slow creeping movement and arrival haptics
     LaunchedEffect(spellText, spellTrigger) {
         if (!spellText.isNullOrBlank()) {
-            val upper = spellText.trim().uppercase()
-            // Slower, heavy creeping non-linear easing
-            val eerieEasing = CubicBezierEasing(0.35f, 0.0f, 0.15f, 1.0f)
+            isSpellingActive = true
+            try {
+                val upper = spellText.trim().uppercase()
+                // Slower, heavy creeping non-linear easing
+                val eerieEasing = CubicBezierEasing(0.35f, 0.0f, 0.15f, 1.0f)
 
-            // Direct corner word targeting: YES, NO, HELLO, GOODBYE
-            val cornerTarget = if (upper in listOf("YES", "NO", "HELLO", "GOODBYE")) {
-                targets.find { it.name == upper }
-            } else null
+                // Direct corner word targeting: YES, NO, HELLO, GOODBYE
+                val cornerTarget = if (upper in listOf("YES", "NO", "HELLO", "GOODBYE")) {
+                    targets.find { it.name == upper }
+                } else null
 
-            if (cornerTarget != null) {
-                val targetX = cornerTarget.normX * boardWidth
-                val targetY = cornerTarget.normY * boardHeight - apertureOffsetY
-                // Slower deliberate crawl across the board to corner targets (2500ms minimum)
-                val animTime = (spellSpeedMs * 1.4f).toInt().coerceAtLeast(2500)
-                launch {
-                    planchetteX.animateTo(targetX, tween(animTime, easing = eerieEasing))
-                }
-                planchetteY.animateTo(targetY, tween(animTime, easing = eerieEasing))
-
-                triggerArrival()
-                onPositionChanged(cornerTarget.normX, cornerTarget.normY, cornerTarget.name)
-            } else {
-                for (char in upper) {
-                    if (char == ' ') {
-                        delay(900L) // Suspenseful pause between words
-                        continue
+                if (cornerTarget != null) {
+                    val targetX = cornerTarget.normX * boardWidth
+                    val targetY = cornerTarget.normY * boardHeight - apertureOffsetY
+                    // Slower deliberate crawl across the board to corner targets (2500ms minimum)
+                    val animTime = (spellSpeedMs * 1.4f).toInt().coerceAtLeast(2500)
+                    launch {
+                        planchetteX.animateTo(targetX, tween(animTime, easing = eerieEasing))
                     }
-                    val target = targets.find { it.name == char.toString() }
+                    planchetteY.animateTo(targetY, tween(animTime, easing = eerieEasing))
 
-                    if (target != null) {
-                        val targetX = target.normX * boardWidth
-                        val targetY = target.normY * boardHeight - apertureOffsetY // Center magnifying aperture over letter
-
-                        // Slow, deliberate creeping movement from letter to letter (1600ms minimum)
-                        val animTime = spellSpeedMs.toInt().coerceAtLeast(1600)
-                        launch {
-                            planchetteX.animateTo(targetX, tween(animTime, easing = eerieEasing))
+                    triggerArrival()
+                    onPositionChanged(cornerTarget.normX, cornerTarget.normY, cornerTarget.name)
+                    delay(1200L) // Settle on answer so victim clearly reads it
+                } else {
+                    for (char in upper) {
+                        if (char == ' ') {
+                            delay(900L) // Suspenseful pause between words
+                            continue
                         }
-                        planchetteY.animateTo(targetY, tween(animTime, easing = eerieEasing))
+                        val target = targets.find { it.name == char.toString() }
 
-                        triggerArrival()
-                        onPositionChanged(target.normX, target.normY, target.name)
-                        delay(700L) // Suspenseful pause on each letter for readability
+                        if (target != null) {
+                            val targetX = target.normX * boardWidth
+                            val targetY = target.normY * boardHeight - apertureOffsetY // Center magnifying aperture over letter
+
+                            // Slow, deliberate creeping movement from letter to letter (1600ms minimum)
+                            val animTime = spellSpeedMs.toInt().coerceAtLeast(1600)
+                            launch {
+                                planchetteX.animateTo(targetX, tween(animTime, easing = eerieEasing))
+                            }
+                            planchetteY.animateTo(targetY, tween(animTime, easing = eerieEasing))
+
+                            triggerArrival()
+                            onPositionChanged(target.normX, target.normY, target.name)
+                            delay(700L) // Suspenseful pause on each letter for readability
+                        }
                     }
+                    delay(1200L) // Settle on final letter of message
                 }
+            } finally {
+                isSpellingActive = false
             }
+        } else {
+            isSpellingActive = false
         }
     }
 
@@ -411,7 +421,16 @@ fun OuijaBoardCanvas(
                     }
                 }
             }
-            .pointerInput(Unit) {
+            .pointerInput(isSpellingActive) {
+                if (isSpellingActive) {
+                    // While message is being spelled, supernatural force possesses the puck:
+                    // victim cannot move or disrupt puck control
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        triggerTick() // Subtle haptic resistance when victim touches puck/board
+                    }
+                    return@pointerInput
+                }
                 detectDragGestures { change, dragAmount ->
                     change.consume()
                     scope.launch {
