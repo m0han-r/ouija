@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -58,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import ouija.app.R
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -365,58 +367,46 @@ fun OuijaBoardCanvas(
 
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    val now = System.currentTimeMillis()
-
-                    // Debounce rapid hardware jitter / multi-touch (< 80ms)
-                    if (now - lastMoonTapTime < 80L) {
-                        return@awaitEachGesture
-                    }
-
                     val w = size.width.toFloat()
                     val h = size.height.toFloat()
                     val config = currentArchConfig
                     val moonCenter = Offset(w * config.candleLeftNormX, h * config.moonNormY)
-                    val sunCenter = Offset(w * config.candleRightNormX, h * config.sunNormY)
+                    // Touch area strictly centered on the moon graphic (~44dp radius)
+                    val moonHitRadius = 44.dp.toPx()
 
                     val distMoon = hypot(down.position.x - moonCenter.x, down.position.y - moonCenter.y)
-                    val distSun = hypot(down.position.x - sunCenter.x, down.position.y - sunCenter.y)
-                    val isMoonArea = distMoon < 90.dp.toPx() ||
-                            distSun < 90.dp.toPx() ||
-                            (down.position.x < w * 0.22f && down.position.y < h * 0.38f)
-
-                    if (isMoonArea) {
-                        lastMoonTapTime = now
-
-                        // Reset or increment tap count based on the 3-second window from 1st tap
-                        if (moonTapCount == 0 || (now - firstMoonTapTime) > windowMs) {
-                            firstMoonTapTime = now
-                            moonTapCount = 1
-                        } else {
-                            moonTapCount++
+                    if (distMoon <= moonHitRadius) {
+                        // Confirm this is a genuine tap (finger lifted within 500ms without dragging)
+                        val up = withTimeoutOrNull(500L) {
+                            waitForUpOrCancellation()
                         }
 
-                        try {
-                            if (moonTapCount >= 3) {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                    vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
-                                } else {
-                                    @Suppress("DEPRECATION")
-                                    vibrator?.vibrate(60L)
-                                }
-                            } else {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                    vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
-                                } else {
-                                    @Suppress("DEPRECATION")
-                                    vibrator?.vibrate(25L)
+                        if (up != null) {
+                            val distUp = hypot(up.position.x - moonCenter.x, up.position.y - moonCenter.y)
+                            if (distUp <= moonHitRadius) {
+                                val now = System.currentTimeMillis()
+
+                                // Debounce rapid accidental double-touches (< 80ms)
+                                if (now - lastMoonTapTime >= 80L) {
+                                    lastMoonTapTime = now
+
+                                    // If window expired or new sequence, start from tap 1
+                                    if (moonTapCount == 0 || (now - firstMoonTapTime) > windowMs) {
+                                        firstMoonTapTime = now
+                                        moonTapCount = 1
+                                    } else {
+                                        moonTapCount++
+                                    }
+
+                                    // Three taps within 3 seconds triggers the secret menu
+                                    // Completely stealthy with zero button clicks/vibrations
+                                    if (moonTapCount >= 3) {
+                                        moonTapCount = 0
+                                        firstMoonTapTime = 0L
+                                        currentOnMoonTapped?.invoke()
+                                    }
                                 }
                             }
-                        } catch (_: Exception) {}
-
-                        if (moonTapCount >= 3) {
-                            moonTapCount = 0
-                            firstMoonTapTime = 0L
-                            currentOnMoonTapped?.invoke()
                         }
                     }
                 }
