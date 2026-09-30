@@ -373,7 +373,9 @@ fun OuijaBoardCanvas(
                 var firstMoonTapTime = 0L
                 var lastMoonTapTime = 0L
                 var moonTapCount = 0
-                val windowMs = 3000L // Must tap 3 times within 3 seconds
+                // Must tap 3 times within 0.5 second
+                val windowMs = 500L
+                val moonTapNeeded = 3
 
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -408,9 +410,8 @@ fun OuijaBoardCanvas(
                                         moonTapCount++
                                     }
 
-                                    // Three taps within 3 seconds triggers the secret menu
                                     // Completely stealthy with zero button clicks/vibrations
-                                    if (moonTapCount >= 3) {
+                                    if (moonTapCount >= moonTapNeeded) {
                                         moonTapCount = 0
                                         firstMoonTapTime = 0L
                                         currentOnMoonTapped?.invoke()
