@@ -4,6 +4,32 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+val exactCommitTag: String? = try {
+    providers.exec {
+        commandLine("git", "describe", "--tags", "--exact-match", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.map { it.trim() }.get().ifBlank { null }
+} catch (_: Exception) {
+    null
+}
+
+val commitHash6: String = try {
+    providers.exec {
+        commandLine("git", "rev-parse", "--short=6", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.map { it.trim().take(6) }.get().ifBlank { "dev000" }
+} catch (_: Exception) {
+    "dev000"
+}
+
+// If current commit has a tag, use it (e.g. v1.2.0); else use that commit's 6-character hashcode
+val versionIdentifier: String = exactCommitTag ?: commitHash6
+val appVersionName: String = versionIdentifier.removePrefix("v")
+
+base {
+    archivesName.set("ouija-$versionIdentifier")
+}
+
 android {
     namespace = "ouija.app"
     compileSdk = 35
@@ -12,8 +38,8 @@ android {
         applicationId = "ouija.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -37,12 +63,27 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures {
         compose = true
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName.set(
+                if (variant.name == "release") {
+                    "ouija-${versionIdentifier}.apk"
+                } else {
+                    "ouija-${versionIdentifier}-${variant.name}.apk"
+                }
+            )
+        }
     }
 }
 
